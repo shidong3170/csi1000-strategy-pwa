@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b57d0">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>中证1000策略助手</title>
+<style>
+:root{--blue:#0b57d0;--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#6b7280;--green:#0a8f5a;--orange:#d97706;--red:#c62828;--line:#e6e9ef}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;z-index:5;background:var(--blue);color:white;padding:14px 16px 12px;box-shadow:0 1px 8px #0002}
+header .title{font-weight:700;font-size:18px}.small{font-size:12px;color:var(--muted)} header .small{color:#dbe8ff}
+main{padding:12px 12px 88px;max-width:760px;margin:auto}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px #17203310}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.metric{padding:10px;border:1px solid var(--line);border-radius:12px}.metric b{display:block;font-size:20px;margin-top:4px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between}.wrap{flex-wrap:wrap}
+.badge{padding:4px 8px;border-radius:999px;font-size:12px;background:#edf3ff;color:var(--blue)}.green{background:#e7f7ef;color:var(--green)}.orange{background:#fff3df;color:var(--orange)}.red{background:#fde8e8;color:var(--red)}
+button{border:0;border-radius:10px;padding:11px 14px;font-weight:600;background:var(--blue);color:#fff}button.secondary{background:#eef3fb;color:var(--blue)}button.danger{background:#fee2e2;color:#a11919}button:disabled{opacity:.45}
+input,select,textarea{width:100%;padding:10px;border:1px solid #ccd3df;border-radius:10px;background:#fff;font-size:16px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);z-index:10;padding-bottom:env(safe-area-inset-bottom)}
+nav button{background:#fff;color:#667085;border-radius:0;padding:10px 2px;font-size:12px}nav button.active{color:var(--blue)}
+h2{font-size:17px;margin:3px 0 10px}h3{font-size:15px;margin:8px 0}
+.progress{height:9px;background:#edf0f4;border-radius:99px;overflow:hidden}.progress span{display:block;height:100%;background:var(--blue)}
+.list{display:flex;flex-direction:column;gap:8px}.item{padding:10px;border:1px solid var(--line);border-radius:11px}
+.item .meta{font-size:12px;color:var(--muted);margin-top:4px}
+.hidden{display:none!important}.notice{padding:10px;border-radius:10px;background:#fff7e8;border:1px solid #f6d69d;color:#805600;font-size:13px}
+.ok{background:#ecf8f1;border-color:#b8e3c9;color:#166534}.error{background:#fff0f0;border-color:#efb9b9;color:#991b1b}
+.modal{position:fixed;inset:0;background:#0008;z-index:30;display:flex;align-items:flex-end;justify-content:center}
+.modal .sheet{background:#fff;width:100%;max-width:760px;max-height:90vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px}
+hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;border-bottom:1px solid var(--line);text-align:left}
+.code{font-family:ui-monospace,monospace;background:#f4f5f7;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">中证1000策略助手</div>
+  <div class="small" id="headerSub">本地数据 · PWA V1.0 原型</div>
+</header>
+
+<main>
+<section id="page-home">
+  <div id="initCard" class="card hidden">
+    <h2>首次初始化</h2>
+    <div class="notice">安装前历史使用汇总基线；接管日起逐笔精确记录。</div>
+    <label>策略开始日期</label><input id="initStartDate" type="date" value="2025-12-14">
+    <div class="grid">
+      <div><label>历史有效期数</label><input id="initCycles" type="number" value="171"></div>
+      <div><label>历史累计本金（元）</label><input id="initPrincipal" type="number" value="21380" step="0.01"></div>
+    </div>
+    <div class="grid">
+      <div><label>当前基金市值（元）</label><input id="initMarketValue" type="number" step="0.01" placeholder="必填"></div>
+      <div><label>当前总份额</label><input id="initShares" type="number" step="0.000001" placeholder="必填"></div>
+    </div>
+    <button id="btnInitialize">完成初始化并接管</button>
+  </div>
+
+  <div id="homeContent" class="hidden">
+    <div class="card">
+      <div class="row"><h2>今日策略建议</h2><span id="recommendBadge" class="badge">计算中</span></div>
+      <div id="recommendText" style="font-size:20px;font-weight:700;margin:8px 0">—</div>
+      <div id="recommendReason" class="small">—</div>
+      <hr>
+      <div class="row"><span class="small">建议资金来源</span><b id="fundingText">—</b></div>
+    </div>
+
+    <div class="grid">
+      <div class="metric"><span class="small">当前在场本金</span><b id="mPrincipal">—</b><span id="mPosition" class="small">—</span></div>
+      <div class="metric"><span class="small">现金池</span><b id="mCashPool">—</b><span class="small">策略内部资金</span></div>
+      <div class="metric"><span class="small">基金市值</span><b id="mMarketValue">—</b><span id="mCalFresh" class="small">—</span></div>
+      <div class="metric"><span class="small">策略总资产</span><b id="mTotalAssets">—</b><span class="small">基金 + 现金池</span></div>
+    </div>
+
+    <div class="card">
+      <div class="row"><h2>仓位与硬上限</h2><span id="positionBadge" class="badge">—</span></div>
+      <div class="progress"><span id="positionBar" style="width:0%"></span></div>
+      <div class="row small" style="margin-top:7px"><span>目标15%～16%</span><span>警戒18% / 减速19%</span></div>
+      <div class="row" style="margin-top:10px"><span>当年硬上限</span><b id="mHardLimit">—</b></div>
+      <div class="row"><span>剩余可部署额度</span><b id="mRemaining">—</b></div>
+    </div>
+
+    <div class="card">
+      <div class="row"><h2>收益状态</h2><span id="xirrBadge" class="badge">接管后</span></div>
+      <div class="grid">
+        <div class="metric"><span class="small">接管后策略XIRR</span><b id="mXirr">—</b><span class="small">目标 ≥ 6%</span></div>
+        <div class="metric"><span class="small">有效定投期数</span><b id="mCycles">—</b><span class="small">历史171期 + 接管后</span></div>
+      </div>
+    </div>
+
+    <div id="todoCard" class="card">
+      <div class="row"><h2>待办</h2><button class="secondary" onclick="App.refreshAll()">刷新</button></div>
+      <div id="todoList" class="list"></div>
+    </div>
+  </div>
+</section>
+
+<section id="page-records" class="hidden">
+  <div class="card">
+    <div class="row"><h2>交易与补录</h2><button id="btnAddManual" class="secondary">+ 手动买入</button></div>
+    <div id="catchupNotice" class="notice hidden"></div>
+    <div id="recordsList" class="list" style="margin-top:10px"></div>
+  </div>
+</section>
+
+<section id="page-analysis" class="hidden">
+  <div class="card">
+    <h2>收益分析</h2>
+    <div class="grid">
+      <div class="metric"><span class="small">接管后策略XIRR</span><b id="aXirr">—</b></div>
+      <div class="metric"><span class="small">策略总资产</span><b id="aAssets">—</b></div>
+      <div class="metric"><span class="small">在场本金</span><b id="aPrincipal">—</b></div>
+      <div class="metric"><span class="small">现金池</span><b id="aCash">—</b></div>
+    </div>
+    <div id="analysisNotice" class="notice" style="margin-top:10px">尚未接入中证1000联网行情源时，三因素模型不会生成加码建议。</div>
+  </div>
+  <div class="card">
+    <h2>市场三因素</h2>
+    <table>
+      <tr><td>回撤</td><td id="marketDrawdown">无数据</td></tr>
+      <tr><td>近3年位置</td><td id="market3y">无数据</td></tr>
+      <tr><td>MA200</td><td id="marketMA">无数据</td></tr>
+      <tr><td>行情状态</td><td id="marketFresh">未接入</td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="page-strategy" class="hidden">
+  <div class="card">
+    <h2>策略 V1.0</h2>
+    <div class="grid">
+      <div><label>总投资基准（元）</label><input id="sBase" type="number" value="150000"></div>
+      <div><label>基础定投（元/交易日）</label><input id="sRecurring" type="number" value="100"></div>
+      <div><label>目标仓位下限（%）</label><input id="sTargetMin" type="number" value="15" step="0.1"></div>
+      <div><label>目标仓位上限（%）</label><input id="sTargetMax" type="number" value="16" step="0.1"></div>
+      <div><label>警戒仓位（%）</label><input id="sWarning" type="number" value="18" step="0.1"></div>
+      <div><label>减速仓位（%）</label><input id="sSlowdown" type="number" value="19" step="0.1"></div>
+      <div><label>基础硬上限比例（%）</label><input id="sHardBp" type="number" value="20" step="0.1"></div>
+      <div><label>年度硬上限增量（元）</label><input id="sAnnualInc" type="number" value="6000"></div>
+      <div><label>目标XIRR（%）</label><input id="sTargetXirr" type="number" value="6" step="0.1"></div>
+      <div><label>新版本生效日期</label><input id="sEffective" type="date"></div>
+    </div>
+    <label>修改原因</label><textarea id="sReason" rows="2" placeholder="改未来，不改历史"></textarea>
+    <button id="btnSaveStrategy">保存为新策略版本</button>
+  </div>
+</section>
+
+<section id="page-more" class="hidden">
+  <div class="card">
+    <h2>人工校准</h2>
+    <div class="grid">
+      <div><label>当前基金市值（元）</label><input id="cMarketValue" type="number" step="0.01"></div>
+      <div><label>当前总份额</label><input id="cShares" type="number" step="0.000001"></div>
+    </div>
+    <div class="small" id="cImplied">隐含净值：—</div>
+    <button id="btnCalibrate">保存校准快照</button>
+  </div>
+
+  <div class="card">
+    <h2>现金池</h2>
+    <div class="grid">
+      <div><label>金额（元）</label><input id="cashAmount" type="number" step="0.01"></div>
+      <div><label>动作</label><select id="cashType">
+        <option value="EXTERNAL_IN">外部转入现金池</option>
+        <option value="STRATEGY_EXIT_OUT">退出策略</option>
+      </select></div>
+    </div>
+    <button id="btnCashAction">记录现金池动作</button>
+  </div>
+
+  <div class="card">
+    <h2>止盈转现金池</h2>
+    <div class="notice">赎回按当前市值比例分摊退出本金；基金与现金池之间属于策略内部调拨，不计入外部XIRR现金流。</div>
+    <label>赎回金额（元）</label><input id="redeemAmount" type="number" step="0.01">
+    <button id="btnRedeem">确认止盈并转入现金池</button>
+  </div>
+
+  <div class="card">
+    <h2>数据管理</h2>
+    <div class="row wrap">
+      <button id="btnExport">导出JSON备份</button>
+      <button id="btnImport" class="secondary">导入JSON备份</button>
+      <input id="importFile" class="hidden" type="file" accept="application/json">
+    </div>
+    <div class="small" style="margin-top:8px">正式数据保存在本机 IndexedDB。清除网站数据可能导致丢失，请定期备份。</div>
+  </div>
+
+  <div class="card">
+    <h2>行情连接状态</h2>
+    <div id="marketConnection" class="notice">正在读取同源公开行情数据。</div>
+  </div>
+</section>
+</main>
+
+<nav>
+<button data-page="home" class="active">首页</button>
+<button data-page="records">记录</button>
+<button data-page="analysis">分析</button>
+<button data-page="strategy">策略</button>
+<button data-page="more">更多</button>
+</nav>
+
+<div id="modal" class="modal hidden"><div class="sheet" id="modalSheet"></div></div>
+
+<script src="./strategy-core.js"></script>
+<script src="./market-provider.js"></script>
+<script>
+const DB_NAME='CSI1000StrategyDB', DB_VERSION=1;
+const STORES=['app_meta','initialization_baseline','strategy_versions','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
+
+const $=id=>document.getElementById(id);
+const yuan=c=>new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY'}).format((c||0)/100);
+const pctBp=bp=>((bp||0)/100).toFixed(2)+'%';
+const today=()=>new Date().toISOString().slice(0,10);
+const cents=v=>Math.round(Number(v||0)*100);
+const daysBetween=(a,b)=>Math.floor((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
+const addDays=(date,days)=>{const d=new Date(date+'T00:00:00');d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)};
+
+class DB{
+ static db;
+ static async open(){
+   if(this.db)return this.db;
+   this.db=await new Promise((res,rej)=>{
+     const r=indexedDB.open(DB_NAME,DB_VERSION);
+     r.onupgradeneeded=e=>{
+       const db=e.target.result;
+       for(const s of STORES) if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:'id'});
+     };
+     r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+   }); return this.db;
+ }
+ static async put(store,obj){const db=await this.open();return new Promise((res,rej)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(obj);tx.oncomplete=()=>res(obj);tx.onerror=()=>rej(tx.error)})}
+ static async get(store,id){const db=await this.open();return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+ static async all(store){const db=await this.open();return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+ static async clear(store){const db=await this.open();return new Promise((res,rej)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).clear();tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+ static async atomic(stores,mutator){
+   const db=await this.open();
+   return new Promise((res,rej)=>{
+     const tx=db.transaction(stores,'readwrite');
+     tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error||new Error('事务已中止'));
+     try{mutator(tx)}catch(e){try{tx.abort()}catch(_){}rej(e)}
+   });
+ }
+}
+
+const Calc={
+ annualHardLimit(strategy,asOf=today()){
+   return StrategyCore.annualHardLimit(strategy,asOf);
+ },
+ async cashPool(){
+   return (await DB.all('cash_pool_ledger')).filter(x=>!x.voided).reduce((a,x)=>a+x.amountCent,0);
+ },
+ async principal(){
+   const b=await DB.get('initialization_baseline','baseline');
+   if(!b)return 0;
+   const cycles=(await DB.all('investment_cycles')).filter(x=>!x.voided&&x.status==='EXECUTED').reduce((a,x)=>a+x.actualAmountCent,0);
+   const buys=(await DB.all('manual_trades')).filter(x=>!x.voided&&x.type==='MANUAL_BUY').reduce((a,x)=>a+x.amountCent,0);
+   const exits=(await DB.all('manual_trades')).filter(x=>!x.voided&&x.type==='MANUAL_REDEEM').reduce((a,x)=>a+(x.exitedPrincipalCent||0),0);
+   return b.takeoverInMarketPrincipalCent+cycles+buys-exits;
+ },
+ async latestCalibration(){
+   const all=(await DB.all('calibration_snapshots')).filter(x=>!x.voided).sort((a,b)=>(b.snapshotAt||b.snapshotDate).localeCompare(a.snapshotAt||a.snapshotDate));
+   return all[0]||null;
+ },
+ xirr(cashflows, terminalCent, terminalDate){
+   return StrategyCore.xirr(cashflows,terminalCent,terminalDate);
+ },
+ async metrics(){
+   const strategy=(await DB.all('strategy_versions')).filter(x=>x.effectiveFrom<=today()&&(!x.effectiveTo||x.effectiveTo>=today())).sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+   const principal=await this.principal(), cash=await this.cashPool(), cal=await this.latestCalibration();
+   const hard=strategy?this.annualHardLimit(strategy):0, remaining=Math.max(0,hard-principal);
+   const positionBp=strategy?StrategyCore.principalPositionBp(principal,strategy.totalInvestmentBaseCent):0;
+   const fund=cal?cal.fundMarketValueCent:0,total=fund+cash;
+   const xflows=(await DB.all('external_cashflows')).filter(x=>!x.voided).sort((a,b)=>a.date.localeCompare(b.date));
+   const xirr=cal?this.xirr(xflows,total,cal.snapshotDate):null;
+   const calDays=cal?daysBetween(cal.snapshotDate,today()):9999;
+   return {strategy,principal,cash,cal,hard,remaining,positionBp,fund,total,xirr,calDays};
+ }
+};
+
+const Market={
+ async status(){
+   if(!window.MarketProvider) return {available:false,freshness:'MISSING',candidateCent:null,reason:'行情适配器未加载'};
+   try{
+     const result=await window.MarketProvider.getThreeFactorStatus();
+     if(!result.available) return result;
+     return result;
+   }catch(e){
+     return {available:false,freshness:'MISSING',candidateCent:null,reason:'行情更新失败：'+e.message};
+   }
+ }
+};
+
+const Engine={
+ async recommend(m){
+   if(!m.strategy)return {action:'INIT',amount:0,text:'请先初始化',reason:''};
+   const holdingYears=daysBetween((await DB.get('initialization_baseline','baseline')).strategyStartDate,today())/365.2425;
+   const market=await Market.status();
+   const calibrationStatus=m.calDays<=7?'FRESH':m.calDays<=14?'DUE':'STALE';
+   const result=StrategyCore.recommend({strategy:m.strategy,principalCent:m.principal,positionBp:m.positionBp,remainingCent:m.remaining,cashPoolCent:m.cash,holdingYears,xirrRate:m.xirr,calibrationStatus,market});
+   const labels={STOP_NEW_INVESTMENT:'停止新增',REASSESS_STRATEGY:'重新评估策略',EXIT_OR_DE_RISK:'退出/降仓观察',TAKE_PROFIT_TO_CASH_POOL:'止盈转现金池'};
+   const reasons={HARD_LIMIT_REACHED:'当前在场本金已达到当年度硬上限',MAX_TERM_REASSESS:'已满5年且目标未完成，不自动无限延长',MAX_TERM_TARGET_REACHED:'已满5年且目标已完成，进入退出或降仓阶段',XIRR_TAKE_PROFIT:'已满3年且接管后XIRR进入分批止盈区',POSITION_19_SLOWDOWN:'本金仓位≥19%，主动减速至50元/交易日',POSITION_18_CAP:'本金仓位≥18%，市场加码上限100元/交易日',MARKET_THREE_FACTOR:'三因素市场模型触发',MARKET_BASE_ONLY:'行情不可用或过期，按基础定投'};
+   return {action:result.action,amount:result.amountCent,text:labels[result.action]||(result.amountCent/100+'元/交易日'),reason:result.reasonCodes.map(x=>reasons[x]||x).join('；'),cashUse:result.funding.cashPoolCent,ext:result.funding.externalCent,market};
+ }
+};
+
+const App={
+ async strategyForDate(date){return (await DB.all('strategy_versions')).filter(x=>x.effectiveFrom<=date&&(!x.effectiveTo||x.effectiveTo>=date)).sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0]||null},
+ async currentStrategy(){return this.strategyForDate(today())},
+ async initialized(){return !!(await DB.get('app_meta','app'))?.initialized},
+ async init(){
+   await DB.open();
+   $('sEffective').value=today();
+   document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>this.showPage(b.dataset.page));
+   $('btnInitialize').onclick=()=>this.initialize();
+   $('btnCalibrate').onclick=()=>this.calibrate();
+   $('cMarketValue').oninput=$('cShares').oninput=()=>this.previewNav();
+   $('btnAddManual').onclick=()=>this.openManualBuy();
+   $('btnSaveStrategy').onclick=()=>this.saveStrategy();
+   $('btnCashAction').onclick=()=>this.cashAction();
+   $('btnRedeem').onclick=()=>this.takeProfit();
+   $('btnExport').onclick=()=>this.exportBackup();
+   $('btnImport').onclick=()=>$('importFile').click();
+   $('importFile').onchange=e=>this.importBackup(e.target.files[0]);
+   if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+   if(navigator.storage?.persist) navigator.storage.persist().catch(()=>{});
+   await this.refreshAll();
+ },
+ showPage(name){
+   document.querySelectorAll('main>section').forEach(s=>s.classList.add('hidden'));
+   $('page-'+name).classList.remove('hidden');
+   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+   if(name==='records')this.renderRecords();
+   if(name==='analysis')this.renderAnalysis();
+ },
+ async initialize(){
+   const mv=cents($('initMarketValue').value), shares=Number($('initShares').value);
+   if(!mv||!shares){alert('当前市值和当前总份额均为必填');return}
+   const principal=cents($('initPrincipal').value), start=$('initStartDate').value, cycles=Number($('initCycles').value||0), takeover=today();
+   if(principal<=0||cycles<0||!start){alert('请检查开始日期、历史期数和历史本金');return}
+   const now=new Date().toISOString(),snapshotId='cal-'+Date.now();
+   await DB.atomic(['app_meta','initialization_baseline','strategy_versions','external_cashflows','calibration_snapshots'],tx=>{
+     tx.objectStore('app_meta').put({id:'app',initialized:true,installedAt:now,takeoverDate:takeover,schemaVersion:1});
+     tx.objectStore('initialization_baseline').put({id:'baseline',strategyStartDate:start,historicalExecutedCycles:cycles,historicalInvestedPrincipalCent:principal,takeoverDate:takeover,takeoverInMarketPrincipalCent:principal,createdAt:now,locked:true});
+     tx.objectStore('strategy_versions').put({id:'strategy-v1.0',version:'1.0',effectiveFrom:takeover,isCurrent:true,totalInvestmentBaseCent:15000000,targetPositionMinBp:1500,targetPositionMaxBp:1600,warningPositionBp:1800,slowdownPositionBp:1900,baseHardLimitBp:2000,baseHardLimitCent:3000000,annualHardLimitIncrementCent:600000,baseRecurringAmountCent:10000,targetXirrBp:600,minHoldingYears:3,maxHoldingYears:5,createdAt:now,changeReason:'V1.0 Frozen 初始策略'});
+     tx.objectStore('external_cashflows').put({id:'opening',date:takeover,type:'TAKEOVER_OPENING',amountCent:-principal,sourceRecordId:'baseline'});
+     tx.objectStore('calibration_snapshots').put({id:snapshotId,snapshotDate:takeover,snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(shares*1e6),impliedNavScaled:Math.round(mv/100/shares*1e6),inMarketPrincipalCent:principal,cashPoolBalanceCent:0,strategyTotalAssetsCent:mv,createdAt:now});
+   });
+   await this.refreshAll();
+ },
+ async refreshAll(){
+   const ini=await this.initialized();
+   $('initCard').classList.toggle('hidden',ini);$('homeContent').classList.toggle('hidden',!ini);
+   if(!ini)return;
+   const m=await Calc.metrics(), r=await Engine.recommend(m);
+   $('mPrincipal').textContent=yuan(m.principal);$('mPosition').textContent='本金仓位 '+pctBp(m.positionBp);
+   $('mCashPool').textContent=yuan(m.cash);$('mMarketValue').textContent=yuan(m.fund);$('mTotalAssets').textContent=yuan(m.total);
+   $('mHardLimit').textContent=yuan(m.hard);$('mRemaining').textContent=yuan(m.remaining);
+   $('mCycles').textContent=((await DB.get('initialization_baseline','baseline')).historicalExecutedCycles+(await DB.all('investment_cycles')).filter(x=>x.status==='EXECUTED'&&!x.voided).length)+'期';
+   $('mXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';
+   $('mCalFresh').textContent=m.calDays<=7?'校准数据新鲜':m.calDays<=14?`已${m.calDays}天未校准`:'数据已过期';
+   $('positionBar').style.width=Math.min(100,m.positionBp/20)+'%';
+   $('positionBadge').textContent=m.positionBp>=1900?'二级警戒':m.positionBp>=1800?'一级警戒':m.positionBp>=1500?'目标附近':'低于目标';
+   $('positionBadge').className='badge '+(m.positionBp>=1900?'red':m.positionBp>=1800?'orange':m.positionBp>=1500?'green':'');
+   $('recommendText').textContent=r.text;$('recommendReason').textContent=r.reason||'—';
+   $('fundingText').textContent=r.amount?`现金池 ${yuan(r.cashUse||0)} / 外部 ${yuan(r.ext||0)}`:'—';
+   $('recommendBadge').textContent=r.action;
+   $('xirrBadge').textContent='接管后';
+   await this.renderTodos(m);
+   const market=r.market||await Market.status();
+   $('marketConnection').textContent=market.available?`中证1000（${market.indexCode}）行情截至 ${market.asOfDate}，状态 ${market.freshness}`:market.reason;
+   $('marketConnection').className='notice '+(market.available&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN'?'ok':'error');
+ },
+ async renderTodos(m){
+   const list=[];
+   const catchup=await this.catchupDates();
+   if(catchup.length) list.push({t:`待补录 ${catchup.length} 期`,c:'orange',act:'去补录',fn:()=>this.openCatchup(catchup)});
+   if(this.calendarUnavailableYears?.length) list.push({t:`缺少 ${this.calendarUnavailableYears.join('、')} 年交易日历，未自动补录`,c:'red'});
+   if(m.calDays>7) list.push({t:m.calDays>14?'人工校准已过期':'建议进行本周人工校准',c:m.calDays>14?'red':'orange',act:'去校准',fn:()=>this.showPage('more')});
+   if(m.positionBp>=1800) list.push({t:`本金仓位 ${pctBp(m.positionBp)} 已进入警戒`,c:'orange'});
+   const box=$('todoList');box.innerHTML='';
+   if(!list.length)box.innerHTML='<div class="notice ok">当前无待办</div>';
+   for(const x of list){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><span>${x.t}</span>${x.act?`<button class="secondary">${x.act}</button>`:''}</div>`;if(x.act)d.querySelector('button').onclick=x.fn;box.appendChild(d)}
+ },
+ async catchupDates(){
+   const meta=await DB.get('app_meta','app'); if(!meta)return[];
+   const cycles=await DB.all('investment_cycles'), done=new Set(cycles.map(x=>x.scheduledDate));
+   const out=[],missingYears=new Set(); let d=new Date(meta.takeoverDate+'T00:00:00'), now=new Date(today()+'T00:00:00');
+   d.setDate(d.getDate()+1);
+   while(d<=now){
+     const iso=d.toISOString().slice(0,10);
+     let isTrading=false;
+     if(window.TradingCalendarProvider){
+       isTrading=await window.TradingCalendarProvider.isTradingDay(iso);
+       if(isTrading===null){missingYears.add(d.getFullYear());isTrading=false}
+     }else{
+       missingYears.add(d.getFullYear());
+     }
+     if(isTrading&&!done.has(iso)) out.push(iso);
+     d.setDate(d.getDate()+1)
+   }
+   this.calendarUnavailableYears=[...missingYears];
+   return out;
+ },
+ async openCatchup(dates){
+   $('modalSheet').innerHTML=`<h2>补录定投</h2><div class="notice ok">以下日期来自本地年度A股交易日历；缺少可靠日历的年度不会自动生成记录。</div><div id="catchRows"></div><button id="saveCatch">确认补录</button><button class="secondary" onclick="App.closeModal()">稍后</button>`;
+   const rows=$('catchRows');
+   for(const dt of dates){const s=await this.strategyForDate(dt);if(!s)continue;const div=document.createElement('div');div.className='item';div.innerHTML=`<b>${dt}</b><label>实际投入金额（元）</label><input data-date="${dt}" type="number" value="${s.baseRecurringAmountCent/100}"><div class="small">计划金额 ${s.baseRecurringAmountCent/100} 元，可直接改成600等实际金额。</div>`;rows.appendChild(div)}
+   $('saveCatch').onclick=async()=>{for(const inp of rows.querySelectorAll('input')){const s=await this.strategyForDate(inp.dataset.date);if(s)await this.saveCycle(inp.dataset.date,cents(inp.value),s)}this.closeModal();await this.refreshAll()};
+   $('modal').classList.remove('hidden');
+ },
+ async saveCycle(date,amount,s){
+   const m=await Calc.metrics(), actual=Math.min(amount,m.remaining);
+   const cashUse=Math.min(actual,m.cash), ext=actual-cashUse;
+   const id='cycle-'+date,now=new Date().toISOString();
+   await DB.atomic(['investment_cycles','cash_pool_ledger','external_cashflows'],tx=>{
+     tx.objectStore('investment_cycles').put({id,scheduledDate:date,strategyVersionId:s.id,plannedAmountCent:s.baseRecurringAmountCent,actualAmountCent:actual,scheduledBaseAmountCent:s.baseRecurringAmountCent,manualExtraAmountCent:Math.max(0,actual-s.baseRecurringAmountCent),cashPoolFundingCent:cashUse,externalFundingCent:ext,status:actual>0?'EXECUTED':'BLOCKED_HARD_LIMIT',source:'AUTO_CATCHUP',countsAsCycle:actual>0,processed:true,createdAt:now});
+     if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:date,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});
+     if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now});
+   });
+ },
+ closeModal(){$('modal').classList.add('hidden')},
+ async renderRecords(){
+   if(!await this.initialized())return;
+   const dates=await this.catchupDates();
+   $('catchupNotice').classList.toggle('hidden',!dates.length);
+   if(dates.length){$('catchupNotice').innerHTML=`检测到 ${dates.length} 期待补录。 <button id="quickCatch">打开补录</button>`;$('quickCatch').onclick=()=>this.openCatchup(dates)}
+   const cycles=(await DB.all('investment_cycles')).sort((a,b)=>b.scheduledDate.localeCompare(a.scheduledDate));
+   const trades=(await DB.all('manual_trades')).sort((a,b)=>b.tradeDate.localeCompare(a.tradeDate));
+   const box=$('recordsList');box.innerHTML='';
+   for(const x of cycles){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><b>${x.scheduledDate}</b><span class="badge ${x.status==='EXECUTED'?'green':'orange'}">${x.status}</span></div><div>实际 ${yuan(x.actualAmountCent)} · 现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)}</div><div class="meta">计划 ${yuan(x.plannedAmountCent)}；手动追加 ${yuan(x.manualExtraAmountCent||0)}</div>${x.status==='EXECUTED'?'<button class="secondary mark-no">标记未执行</button>':''}`;if(x.status==='EXECUTED')d.querySelector('.mark-no').onclick=()=>this.markNotExecuted(x);box.appendChild(d)}
+   for(const x of trades){const d=document.createElement('div');d.className='item';d.innerHTML=`<b>${x.tradeDate} · ${x.type}</b><div>${yuan(x.amountCent)}</div>`;box.appendChild(d)}
+   if(!cycles.length&&!trades.length)box.innerHTML='<div class="small">接管后暂无交易记录</div>';
+ },
+ async markNotExecuted(x){
+   if(!confirm('标记为未执行后，将撤销该期本金、现金池使用和外部XIRR现金流。继续？'))return;
+   const ce=x.cashPoolFundingCent?await DB.get('cash_pool_ledger','cash-'+x.id):null;
+   const ef=x.externalFundingCent?await DB.get('external_cashflows','ext-'+x.id):null;
+   const before={status:x.status,actualAmountCent:x.actualAmountCent,cashPoolFundingCent:x.cashPoolFundingCent,externalFundingCent:x.externalFundingCent};
+   const now=new Date().toISOString();
+   x.status='NOT_EXECUTED';x.actualAmountCent=0;x.cashPoolFundingCent=0;x.externalFundingCent=0;x.countsAsCycle=false;x.updatedAt=now;
+   await DB.atomic(['investment_cycles','cash_pool_ledger','external_cashflows','record_revisions'],tx=>{
+     if(ce){ce.voided=true;ce.voidedAt=now;tx.objectStore('cash_pool_ledger').put(ce)}
+     if(ef){ef.voided=true;ef.voidedAt=now;tx.objectStore('external_cashflows').put(ef)}
+     tx.objectStore('investment_cycles').put(x);
+     tx.objectStore('record_revisions').put({id:'rev-'+Date.now(),entityType:'investment_cycle',entityId:x.id,changedAt:now,changeType:'STATUS_CHANGE',before,after:{status:x.status,actualAmountCent:0,cashPoolFundingCent:0,externalFundingCent:0},reason:'用户确认实际未执行'});
+   });
+   await this.renderRecords();await this.refreshAll();
+ },
+ openManualBuy(){
+   $('modalSheet').innerHTML=`<h2>新增手动买入</h2><label>日期</label><input id="mbDate" type="date" value="${today()}"><label>金额（元）</label><input id="mbAmount" type="number"><button id="mbSave">保存</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
+   $('mbSave').onclick=async()=>{const amount=cents($('mbAmount').value),m=await Calc.metrics();if(amount<=0)return;const actual=Math.min(amount,m.remaining);if(actual<=0){alert('已达到当年度硬上限，不能新增买入');return}const cashUse=Math.min(actual,m.cash),ext=actual-cashUse,id='manual-'+Date.now(),dt=$('mbDate').value,now=new Date().toISOString();await DB.atomic(['manual_trades','cash_pool_ledger','external_cashflows'],tx=>{tx.objectStore('manual_trades').put({id,tradeDate:dt,type:'MANUAL_BUY',amountCent:actual,cashPoolFundingCent:cashUse,externalFundingCent:ext,affectsCycleCount:false,createdAt:now});if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date:dt,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now})});this.closeModal();await this.renderRecords();await this.refreshAll()};
+   $('modal').classList.remove('hidden');
+ },
+ previewNav(){const mv=Number($('cMarketValue').value),sh=Number($('cShares').value);$('cImplied').textContent=mv&&sh?'隐含净值：'+(mv/sh).toFixed(6):'隐含净值：—'},
+ async calibrate(){
+   const mv=cents($('cMarketValue').value),sh=Number($('cShares').value);if(!mv||!sh){alert('市值和总份额均必填');return}
+   const m=await Calc.metrics(),now=new Date().toISOString();
+   await DB.put('calibration_snapshots',{id:'cal-'+Date.now(),snapshotDate:today(),snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(sh*1e6),impliedNavScaled:Math.round(mv/100/sh*1e6),inMarketPrincipalCent:m.principal,cashPoolBalanceCent:m.cash,strategyTotalAssetsCent:mv+m.cash,createdAt:now});
+   $('cMarketValue').value='';$('cShares').value='';this.previewNav();await this.refreshAll();alert('校准已保存');
+ },
+ async cashAction(){
+   const amount=cents($('cashAmount').value);if(amount<=0)return;const type=$('cashType').value,dt=today(),id='cash-'+Date.now();
+   const now=new Date().toISOString(),cash=await Calc.cashPool();if(type!=='EXTERNAL_IN'&&amount>cash){alert('现金池余额不足');return}
+   await DB.atomic(['cash_pool_ledger','external_cashflows'],tx=>{
+     if(type==='EXTERNAL_IN'){tx.objectStore('cash_pool_ledger').put({id,eventDate:dt,type:'EXTERNAL_IN',amountCent:amount,affectsStrategyXirr:true,createdAt:now});tx.objectStore('external_cashflows').put({id:'ext-'+id,date:dt,type:'EXTERNAL_CONTRIBUTION',amountCent:-amount,sourceRecordId:id,createdAt:now})}
+     else {tx.objectStore('cash_pool_ledger').put({id,eventDate:dt,type:'STRATEGY_EXIT_OUT',amountCent:-amount,affectsStrategyXirr:true,createdAt:now});tx.objectStore('external_cashflows').put({id:'ext-'+id,date:dt,type:'STRATEGY_WITHDRAWAL',amountCent:amount,sourceRecordId:id,createdAt:now})}
+   });
+   $('cashAmount').value='';await this.refreshAll();
+ },
+ async takeProfit(){
+   const amount=cents($('redeemAmount').value),m=await Calc.metrics();
+   if(amount<=0)return;if(!m.cal||m.fund<=0){alert('请先完成人工校准');return}if(amount>m.fund){alert('赎回金额不能超过当前基金市值');return}
+   let allocation;try{allocation=StrategyCore.takeProfitCostAllocation(m.fund,m.principal,amount)}catch(e){alert('赎回参数无效');return}
+   const id='redeem-'+Date.now(),dt=today(),now=new Date().toISOString(),remainingFund=m.fund-amount,remainingShares=Math.round(m.cal.totalSharesMicro*remainingFund/m.fund),cashAfter=m.cash+amount;
+   await DB.atomic(['manual_trades','cash_pool_ledger','calibration_snapshots'],tx=>{
+     tx.objectStore('manual_trades').put({id,tradeDate:dt,type:'MANUAL_REDEEM',amountCent:amount,fundMarketValueBeforeCent:m.fund,inMarketPrincipalBeforeCent:m.principal,redeemAmountCent:amount,exitedPrincipalCent:allocation.exitedPrincipalCent,realizedGainCent:allocation.realizedGainCent,destination:'CASH_POOL',createdAt:now});
+     tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'TAKE_PROFIT_IN',amountCent:amount,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});
+     tx.objectStore('calibration_snapshots').put({id:'cal-'+Date.now(),snapshotDate:dt,snapshotAt:now,fundMarketValueCent:remainingFund,totalSharesMicro:remainingShares,impliedNavScaled:remainingShares?Math.round(remainingFund/100/(remainingShares/1e6)*1e6):0,inMarketPrincipalCent:allocation.remainingPrincipalCent,cashPoolBalanceCent:cashAfter,strategyTotalAssetsCent:remainingFund+cashAfter,source:'TAKE_PROFIT',createdAt:now});
+   });
+   $('redeemAmount').value='';await this.renderRecords();await this.refreshAll();alert(`已转入现金池 ${yuan(amount)}，其中退出本金 ${yuan(allocation.exitedPrincipalCent)}，实现收益 ${yuan(allocation.realizedGainCent)}`);
+ },
+ async renderAnalysis(){
+   const m=await Calc.metrics(),market=await Market.status();$('aXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';$('aAssets').textContent=yuan(m.total);$('aPrincipal').textContent=yuan(m.principal);$('aCash').textContent=yuan(m.cash);
+   $('marketDrawdown').textContent=market.available?pctBp(market.drawdownBp):'无数据';$('market3y').textContent=market.available?pctBp(market.threeYearPositionBp):'无数据';$('marketMA').textContent=market.available?(market.belowMA200?'低于MA200':'不低于MA200'):'无数据';$('marketFresh').textContent=market.available?`${market.freshness} · ${market.asOfDate}`:market.reason;
+   $('analysisNotice').textContent=market.available?(market.freshness==='STALE'||market.freshness==='UNKNOWN'?'行情已过期或无法可靠计算交易日距离，市场加码已禁用':'公开行情已加载，三因素在本机计算。'):market.reason;
+   $('marketConnection').textContent=market.available?`中证1000（${market.indexCode}）行情截至 ${market.asOfDate}，状态 ${market.freshness}`:market.reason;
+   $('marketConnection').className='notice '+(market.available&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN'?'ok':'error');
+ },
+ async saveStrategy(){
+   const effective=$('sEffective').value;if(!effective||effective<today()){alert('新策略版本生效日期不能早于今天');return}
+   const cur=await this.currentStrategy(),all=await DB.all('strategy_versions'),ver='1.'+all.length,id='strategy-'+Date.now(),base=cents($('sBase').value),hardPct=Number($('sHardBp').value),now=new Date().toISOString();
+   const next={id,version:ver,effectiveFrom:effective,isCurrent:true,totalInvestmentBaseCent:base,targetPositionMinBp:Math.round(Number($('sTargetMin').value)*100),targetPositionMaxBp:Math.round(Number($('sTargetMax').value)*100),warningPositionBp:Math.round(Number($('sWarning').value)*100),slowdownPositionBp:Math.round(Number($('sSlowdown').value)*100),baseHardLimitBp:Math.round(hardPct*100),baseHardLimitCent:Math.round(base*hardPct/100),annualHardLimitIncrementCent:cents($('sAnnualInc').value),baseRecurringAmountCent:cents($('sRecurring').value),targetXirrBp:Math.round(Number($('sTargetXirr').value)*100),minHoldingYears:3,maxHoldingYears:5,createdAt:now,changeReason:$('sReason').value||'用户修改'};
+   if(base<=0||next.baseRecurringAmountCent<=0||next.annualHardLimitIncrementCent<0){alert('请检查策略金额参数');return}
+   await DB.atomic(['strategy_versions'],tx=>{if(cur){cur.isCurrent=effective===today()?false:true;cur.effectiveTo=addDays(effective,-1);tx.objectStore('strategy_versions').put(cur)}next.isCurrent=effective===today();tx.objectStore('strategy_versions').put(next)});
+   alert('已保存为新策略版本，仅影响生效日期后的未来规则');await this.refreshAll();
+ },
+ async exportBackup(){
+   const data={schemaVersion:1,exportedAt:new Date().toISOString(),stores:{}};
+   for(const s of STORES)data.stores[s]=await DB.all(s);
+   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`中证1000策略备份_${today()}.json`;a.click();URL.revokeObjectURL(a.href);
+ },
+ async importBackup(file){
+   if(!file)return;let data;try{data=JSON.parse(await file.text())}catch(e){alert('备份文件不是有效JSON');return}if(data.schemaVersion!==1||!data.stores||typeof data.stores!=='object'){alert('备份结构或版本不兼容');return}const recordCount=STORES.reduce((n,s)=>n+(Array.isArray(data.stores[s])?data.stores[s].length:0),0);if(!confirm(`将用备份中的 ${recordCount} 条记录覆盖当前本地数据库。继续？`))return;
+   await DB.atomic(STORES,tx=>{for(const s of STORES){const store=tx.objectStore(s);store.clear();for(const x of (data.stores[s]||[]))store.put(x)}});
+   alert('恢复完成');location.reload();
+ }
+};
+window.App=App;
+App.init();
+</script>
+</body></html>
