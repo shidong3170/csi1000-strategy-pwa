@@ -1,4 +1,4 @@
-# 中证1000策略助手｜GitHub Pages + GitHub Actions 版
+# 中证1000策略助手 V1.0.3｜GitHub Pages + GitHub Actions 版
 
 ## 架构
 
