@@ -32,6 +32,10 @@ const rec=core.recommend({strategy,principalCent:2730000,positionBp:1820,remaini
 assert.equal(rec.amountCent,10000);
 assert.deepEqual(rec.funding,{cashPoolCent:6000,externalCent:4000});
 
+const delayed=core.recommend({strategy,principalCent:2138000,positionBp:1425,remainingCent:862000,cashPoolCent:0,holdingYears:1,xirrRate:null,calibrationStatus:'FRESH',market:{available:true,freshness:'FRESH',decisionReady:false,candidateCent:30000}});
+assert.equal(delayed.amountCent,10000);
+assert.deepEqual(delayed.reasonCodes,['MARKET_BASE_ONLY']);
+
 const exitFlows=[{date:'2026-09-10',amountCent:-2138000},{date:'2027-09-10',amountCent:2238000}];
 assert.ok(core.xirr(exitFlows,0,'2027-09-10')>0);
 

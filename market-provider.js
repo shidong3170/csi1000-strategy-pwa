@@ -1,112 +1,157 @@
-
 /*
- * GitHub Pages edition:
- * - Trading calendar: local annual JSON.
- * - Market data: ./data/csi1000-history.json updated by GitHub Actions.
- * - All three-factor calculations happen locally in the browser.
- * - No user investment data is uploaded.
+ * Market channels:
+ * - MANUAL_DIRECT: user-triggered Eastmoney request.
+ * - GITHUB_AUTO: same-origin static JSON maintained by GitHub Actions.
+ * - LOCAL_CACHE: last valid dataset persisted in IndexedDB.
+ * No investment records or strategy parameters are sent to market providers.
  */
 (function(){
-  const INDEX_CODE='000852';
+  const Core=window.MarketDataCore;
+  const STORAGE_ID='csi1000-history';
+  const REQUEST_TIMEOUT_MS=Number(window.MARKET_REQUEST_TIMEOUT_MS)||12000;
+  const SOURCE_LABELS={MANUAL_DIRECT:'MANUAL_DIRECT · 东方财富手动直连',GITHUB_AUTO:'GITHUB_AUTO · GitHub自动行情',LOCAL_CACHE:'LOCAL_CACHE · 手机本地缓存'};
+  let sessionDataset=null;
+  let staticAttempted=false;
+  const calendars=new Map();
 
   async function loadCalendar(year){
+    if(calendars.has(year)) return calendars.get(year);
     try{
-      const r=await fetch(`./trading-calendar-${year}.json`,{cache:'no-cache'});
-      if(!r.ok) throw new Error('calendar unavailable');
-      return await r.json();
-    }catch(e){
+      const response=await fetch(`./trading-calendar-${year}.json`,{cache:'no-store'});
+      if(!response.ok) throw new Error('CALENDAR_UNAVAILABLE');
+      const calendar=await response.json();
+      if(Number(calendar.calendarYear)!==Number(year)) throw new Error('CALENDAR_YEAR_MISMATCH');
+      calendars.set(year,calendar);
+      return calendar;
+    }catch(error){
+      calendars.set(year,null);
       return null;
     }
   }
 
-  window.TradingCalendarProvider={
-    async isTradingDay(date){
-      const d=new Date(date+'T00:00:00');
-      const cal=await loadCalendar(d.getFullYear());
-      if(!cal) return null; // Frozen rule: no reliable calendar => unknown, never guess.
-      const dow=d.getDay();
-      if(dow===0||dow===6) return false;
-      return !Object.prototype.hasOwnProperty.call(cal.closures||{},date);
-    }
-  };
-
-  function candidate(drawdownBp,posBp,belowMA){
-    if(drawdownBp>=3000 && posBp<=2000 && belowMA) return 30000;
-    if(drawdownBp>=2000 && posBp<=3000) return 20000;
-    if(drawdownBp>=1000 && (posBp<=4000 || belowMA)) return 15000;
-    return 10000;
+  async function isTradingDay(date){
+    const value=new Date(date+'T00:00:00Z');
+    const calendar=await loadCalendar(value.getUTCFullYear());
+    if(!calendar) return null;
+    const weekday=value.getUTCDay();
+    if(weekday===0||weekday===6) return false;
+    return !Object.prototype.hasOwnProperty.call(calendar.closures||{},date);
   }
 
-  async function getTradingDayDistance(lastDate){
-    // Prefer the local official calendar for the latest known year.
-    const today = new Date().toISOString().slice(0,10);
-    const start = new Date(lastDate+'T00:00:00');
-    const end = new Date(today+'T00:00:00');
-    let d = new Date(start), count = 0;
-    d.setDate(d.getDate()+1);
-    while(d<=end){
-      const iso=d.toISOString().slice(0,10);
-      const trading=await window.TradingCalendarProvider.isTradingDay(iso);
-      if(trading===null) return null;
-      if(trading) count++;
-      d.setDate(d.getDate()+1);
+  window.TradingCalendarProvider={isTradingDay};
+
+  function storage(){return window.MarketStorage||null}
+
+  async function readLocal(){
+    const adapter=storage();
+    if(!adapter) return null;
+    try{
+      const record=await adapter.get(STORAGE_ID);
+      if(!record) return null;
+      return Core.validateDataset(record,'LOCAL_CACHE');
+    }catch(error){
+      return null;
     }
-    return count;
   }
 
-  window.MarketProvider={
-    async getThreeFactorStatus(){
-      let data;
+  async function persist(dataset){
+    const valid=Core.validateDataset(dataset,dataset.source);
+    const adapter=storage();
+    if(adapter) await adapter.put({id:STORAGE_ID,...valid,asOfDate:Core.latestDate(valid)});
+    sessionDataset=valid;
+    return valid;
+  }
+
+  async function fetchStatic(){
+    const response=await fetchWithTimeout(`./data/csi1000-history.json?refresh=${Date.now()}`,{cache:'no-store'});
+    if(!response.ok) throw new Error(`GITHUB_STATIC_HTTP_${response.status}`);
+    return Core.validateDataset(await response.json(),'GITHUB_AUTO');
+  }
+
+  function eastmoneyUrl(){
+    const params=new URLSearchParams({secid:'1.000852',fields1:'f1,f2,f3',fields2:'f51,f52,f53,f54,f55,f56,f57',klt:'101',fqt:'0',end:'20500101',lmt:'1200',ut:'fa5fd1943c7b386f172d6893dbbd1d0c'});
+    return `https://push2his.eastmoney.com/api/qt/stock/kline/get?${params}`;
+  }
+
+  async function fetchWithTimeout(url,options={}){
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
+    try{return await fetch(url,{...options,signal:controller.signal})}
+    finally{clearTimeout(timeout)}
+  }
+
+  async function fetchDirect(){
+    const response=await fetchWithTimeout(eastmoneyUrl(),{method:'GET',mode:'cors',cache:'no-store',credentials:'omit'});
+    if(!response.ok) throw new Error(`MANUAL_DIRECT_HTTP_${response.status}`);
+    return Core.parseEastmoneyResponse(await response.json());
+  }
+
+  async function syncStatic(local,force=false){
+    if(staticAttempted&&!force) return local;
+    staticAttempted=true;
+    const incoming=await fetchStatic();
+    const merged=Core.mergeDatasets(local,incoming);
+    return persist(merged);
+  }
+
+  async function resolveDataset(){
+    const local=sessionDataset||await readLocal();
+    try{
+      const synced=await syncStatic(local);
+      if(synced) return synced;
+    }catch(error){
+      // A failed or older static payload never replaces a valid local cache.
+    }
+    if(local) return {...local,source:'LOCAL_CACHE'};
+    throw new Error('NO_VALID_MARKET_DATA');
+  }
+
+  async function refresh(){
+    const local=sessionDataset||await readLocal();
+    try{
+      const direct=Core.mergeDatasets(local,await fetchDirect());
+      const saved=await persist(direct);
+      staticAttempted=true;
+      return {outcome:'MANUAL_DIRECT',dataset:saved,message:`已更新至${Core.latestDate(saved)}收盘数据。`};
+    }catch(directError){
       try{
-        const r=await fetch('./data/csi1000-history.json',{cache:'no-cache'});
-        if(!r.ok) throw new Error('history '+r.status);
-        data=await r.json();
-      }catch(e){
-        return {available:false,freshness:'MISSING',candidateCent:null,reason:'本地公开行情JSON不可用'};
+        const fallback=await syncStatic(local,true);
+        return {outcome:'GITHUB_AUTO',dataset:fallback,message:'手动直连失败，已使用GitHub自动行情。',error:directError.message};
+      }catch(staticError){
+        if(local){
+          sessionDataset={...local,source:'LOCAL_CACHE'};
+          return {outcome:'LOCAL_CACHE',dataset:sessionDataset,message:'联网行情不可用，已保留本地缓存。',error:`${directError.message}; ${staticError.message}`};
+        }
+        throw new Error(`NO_VALID_MARKET_DATA: ${directError.message}; ${staticError.message}`);
       }
-
-      const items=(data.items||[])
-        .filter(x=>x.date&&Number(x.close)>0)
-        .sort((a,b)=>a.date.localeCompare(b.date));
-
-      if(items.length<200){
-        return {available:false,freshness:'MISSING',candidateCent:null,reason:'历史行情不足200个交易日'};
-      }
-
-      const cur=items[items.length-1];
-      const last250=items.slice(-250);
-      const max250=Math.max(...last250.map(x=>Number(x.close)));
-      const drawdownBp=Math.round((1-Number(cur.close)/max250)*10000);
-
-      // Approximately 3 trading years; if more exists, use latest 756 observations.
-      const approx3y=items.slice(-756);
-      const min3=Math.min(...approx3y.map(x=>Number(x.close)));
-      const max3=Math.max(...approx3y.map(x=>Number(x.close)));
-      if(max3===min3){
-        return {available:false,freshness:'MISSING',candidateCent:null,reason:'3年区间异常'};
-      }
-      const posBp=Math.round((Number(cur.close)-min3)/(max3-min3)*10000);
-
-      const ma200=items.slice(-200).reduce((s,x)=>s+Number(x.close),0)/200;
-      const belowMA200=Number(cur.close)<ma200;
-
-      let dist;
-      try{ dist=await getTradingDayDistance(cur.date); }
-      catch(e){ dist=999; }
-
-      const freshness=window.StrategyCore?window.StrategyCore.marketFreshness(dist):(dist==null?'UNKNOWN':dist<=3?'FRESH':dist<=7?'AGING':'STALE');
-
-      return {
-        available:true,
-        freshness,
-        candidateCent:(freshness==='STALE'||freshness==='UNKNOWN')?10000:candidate(drawdownBp,posBp,belowMA200),
-        drawdownBp,
-        threeYearPositionBp:posBp,
-        belowMA200,
-        asOfDate:cur.date,
-        indexCode:INDEX_CODE,
-        source:data.source||'eastmoney'
-      };
     }
-  };
+  }
+
+  async function getThreeFactorStatus(options={}){
+    let dataset;
+    try{dataset=await resolveDataset()}
+    catch(error){return {available:false,freshness:'MISSING',latestStatus:'MISSING',decisionReady:false,candidateCent:null,reason:'没有可用的中证1000行情'}}
+    const metrics=Core.calculateMetrics(dataset);
+    const expected=await Core.expectedLatestTradingDate(options.now||new Date(),isTradingDay);
+    const distance=await Core.tradingDayDistance(metrics.asOfDate,expected,isTradingDay);
+    const status=Core.marketStatus(distance,metrics.asOfDate,expected);
+    const rawCandidate=window.StrategyCore.marketCandidateCent(metrics.drawdownBp,metrics.threeYearPositionBp,metrics.belowMA200);
+    const recommendationDate=status.decisionReady?await Core.nextTradingDay(metrics.asOfDate,isTradingDay):null;
+    return {
+      available:true,
+      ...metrics,
+      ...status,
+      candidateCent:status.decisionReady?rawCandidate:10000,
+      rawCandidateCent:rawCandidate,
+      expectedLatestTradingDate:expected,
+      recommendationDate,
+      indexCode:Core.INDEX_CODE,
+      indexName:Core.INDEX_NAME,
+      source:dataset.source,
+      sourceLabel:SOURCE_LABELS[dataset.source]||dataset.source,
+      fetchedAt:dataset.fetchedAt
+    };
+  }
+
+  window.MarketProvider={getThreeFactorStatus,refresh,SOURCE_LABELS};
 })();

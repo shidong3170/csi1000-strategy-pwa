@@ -1,4 +1,4 @@
-# 中证1000策略助手 V1.0.3｜GitHub Pages + GitHub Actions 版
+# 中证1000策略助手 V1.0.4｜GitHub Pages + GitHub Actions 版
 
 ## 架构
 
@@ -12,10 +12,21 @@ GitHub Repository
    └─ 自动部署 GitHub Pages
 
 手机 PWA
-└─ IndexedDB：只保存你的本金、定投、现金池、校准、XIRR 等私人数据
+├─ 手动直连东方财富公开行情
+└─ IndexedDB：保存你的私人数据和公开行情缓存
 ```
 
 GitHub仓库不需要保存任何个人投资数据。
+
+## 手机手动更新行情
+
+在“分析”页点击“更新行情”后，程序按以下顺序取数：
+
+1. 直连东方财富中证1000（000852）日K；
+2. 直连失败时读取 GitHub Pages 同源静态行情；
+3. 两者都失败时读取设备上的最近一次行情缓存。
+
+界面会显示数据截至日、应有最新交易日、下一交易日建议日期、更新时间、来源和新鲜度。北京时间交易日18:30后如仍缺少当日收盘数据，会明确显示“延迟”，并停止市场因素加码。
 
 ## 首次部署步骤
 
@@ -52,12 +63,13 @@ GitHub仓库不需要保存任何个人投资数据。
 
 ```bash
 node tests/strategy-core.test.js
+node tests/market-data-core.test.js
 node tests/check-project.js
 python -m py_compile scripts/update_market_data.py
 python scripts/update_market_data.py
 ```
 
-前两项验证 Frozen 关键边界、PWA 静态资源、交易日历与行情文件结构；最后一项需要联网并只更新公开指数行情。
+前三项验证 Frozen 关键边界、三级行情通道、新鲜度、PWA 静态资源、交易日历与行情文件结构；最后一项需要联网并只更新公开指数行情。
 
 ## 本地隐私
 

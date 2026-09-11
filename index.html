@@ -39,7 +39,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 <body>
 <header>
   <div class="title">中证1000策略助手</div>
-  <div class="small" id="headerSub">本地数据 · PWA V1.0.3</div>
+  <div class="small" id="headerSub">本地数据 · PWA V1.0.4</div>
 </header>
 
 <main>
@@ -61,7 +61,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 
   <div id="homeContent" class="hidden">
     <div id="recommendCard" class="card recommendation-card" role="button" tabindex="0" aria-haspopup="dialog" aria-label="查看今日策略建议的判断依据">
-      <div class="row"><h2>今日策略建议</h2><span id="recommendBadge" class="badge">计算中</span></div>
+      <div class="row"><h2 id="recommendHeading">策略建议</h2><span id="recommendBadge" class="badge">计算中</span></div>
       <div id="recommendText" style="font-size:20px;font-weight:700;margin:8px 0">—</div>
       <div id="recommendReason" class="small">—</div>
       <hr>
@@ -119,11 +119,17 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
     <div id="analysisNotice" class="notice" style="margin-top:10px">尚未接入中证1000联网行情源时，三因素模型不会生成加码建议。</div>
   </div>
   <div class="card">
-    <h2>市场三因素</h2>
+    <div class="row"><h2>市场三因素</h2><button id="btnMarketRefresh" class="secondary">更新行情</button></div>
+    <div id="marketUpdateResult" class="notice hidden" style="margin-bottom:10px"></div>
     <table>
       <tr><td>回撤</td><td id="marketDrawdown">无数据</td></tr>
       <tr><td>近3年位置</td><td id="market3y">无数据</td></tr>
       <tr><td>MA200</td><td id="marketMA">无数据</td></tr>
+      <tr><td>数据截至</td><td id="marketAsOf">—</td></tr>
+      <tr><td>应有最新交易日</td><td id="marketExpected">—</td></tr>
+      <tr><td>下一建议交易日</td><td id="marketRecommendationDate">—</td></tr>
+      <tr><td>数据来源</td><td id="marketSource">—</td></tr>
+      <tr><td>最后更新时间</td><td id="marketUpdated">—</td></tr>
       <tr><td>行情状态</td><td id="marketFresh">未接入</td></tr>
     </table>
   </div>
@@ -207,15 +213,16 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 <div id="modal" class="modal hidden"><div class="sheet" id="modalSheet"></div></div>
 
 <script src="./strategy-core.js"></script>
+<script src="./market-data-core.js"></script>
 <script src="./market-provider.js"></script>
 <script>
-const DB_NAME='CSI1000StrategyDB', DB_VERSION=1;
+const DB_NAME='CSI1000StrategyDB', DB_VERSION=2;
 const STORES=['app_meta','initialization_baseline','strategy_versions','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
 
 const $=id=>document.getElementById(id);
 const yuan=c=>new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY'}).format((c||0)/100);
 const pctBp=bp=>((bp||0)/100).toFixed(2)+'%';
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>window.MarketDataCore?MarketDataCore.beijingClock().date:new Date().toISOString().slice(0,10);
 const cents=v=>Math.round(Number(v||0)*100);
 const daysBetween=(a,b)=>Math.floor((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
 const addDays=(date,days)=>{const d=new Date(date+'T00:00:00');d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)};
@@ -225,10 +232,12 @@ class DB{
  static async open(){
    if(this.db)return this.db;
    this.db=await new Promise((res,rej)=>{
-     const r=indexedDB.open(DB_NAME,DB_VERSION);
-     r.onupgradeneeded=e=>{
-       const db=e.target.result;
-       for(const s of STORES) if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:'id'});
+      const r=indexedDB.open(DB_NAME,DB_VERSION);
+      r.onupgradeneeded=e=>{
+        const db=e.target.result;
+        // V2仅重建可再下载的公开行情缓存；私人投资数据所在的其他store保持原样。
+        if(e.oldVersion<2&&db.objectStoreNames.contains('market_daily')) db.deleteObjectStore('market_daily');
+        for(const s of STORES) if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:s==='market_daily'?'date':'id'});
      };
      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
    }); return this.db;
@@ -246,6 +255,22 @@ class DB{
    });
  }
 }
+
+window.MarketStorage={
+  async get(){
+    const rows=(await DB.all('market_daily')).filter(x=>x.valid!==false&&x.indexCode==='000852'&&Number.isInteger(x.closeScaled)&&x.closeScaled>0).sort((a,b)=>a.date.localeCompare(b.date));
+    if(rows.length<200)return null;
+    const latest=rows[rows.length-1];
+    return {indexCode:'000852',indexName:'中证1000',source:latest.source||'LOCAL_CACHE',fetchedAt:latest.fetchedAt,items:rows.map(x=>({date:x.date,close:x.closeScaled/10000}))};
+  },
+  async put(record){
+    await DB.atomic(['market_daily'],tx=>{
+      const store=tx.objectStore('market_daily');store.clear();
+      for(const item of record.items) store.put({date:item.date,indexCode:'000852',closeScaled:Math.round(Number(item.close)*10000),source:record.source,fetchedAt:record.fetchedAt,valid:true});
+    });
+    return record;
+  }
+};
 
 const Calc={
  annualHardLimit(strategy,asOf=today()){
@@ -292,7 +317,11 @@ const Market={
    }catch(e){
      return {available:false,freshness:'MISSING',candidateCent:null,reason:'行情更新失败：'+e.message};
    }
- }
+  },
+  async refresh(){
+    if(!window.MarketProvider) throw new Error('行情适配器未加载');
+    return window.MarketProvider.refresh();
+  }
 };
 
 const Engine={
@@ -303,8 +332,9 @@ const Engine={
    const calibrationStatus=m.calDays<=7?'FRESH':m.calDays<=14?'DUE':'STALE';
    const result=StrategyCore.recommend({strategy:m.strategy,principalCent:m.principal,positionBp:m.positionBp,remainingCent:m.remaining,cashPoolCent:m.cash,holdingYears,xirrRate:m.xirr,calibrationStatus,market});
    const labels={STOP_NEW_INVESTMENT:'停止新增',REASSESS_STRATEGY:'重新评估策略',EXIT_OR_DE_RISK:'退出/降仓观察',TAKE_PROFIT_TO_CASH_POOL:'止盈转现金池'};
-   const reasons={HARD_LIMIT_REACHED:'当前在场本金已达到当年度硬上限',MAX_TERM_REASSESS:'已满5年且目标未完成，不自动无限延长',MAX_TERM_TARGET_REACHED:'已满5年且目标已完成，进入退出或降仓阶段',XIRR_TAKE_PROFIT:'已满3年且接管后XIRR进入分批止盈区',POSITION_19_SLOWDOWN:'本金仓位≥19%，主动减速至50元/交易日',POSITION_18_CAP:'本金仓位≥18%，市场加码上限100元/交易日',MARKET_THREE_FACTOR:'三因素市场模型触发',MARKET_BASE_ONLY:'行情不可用或过期，按基础定投'};
-   return {action:result.action,amount:result.amountCent,text:labels[result.action]||(result.amountCent/100+'元/交易日'),reason:result.reasonCodes.map(x=>reasons[x]||x).join('；'),cashUse:result.funding.cashPoolCent,ext:result.funding.externalCent,market};
+    const marketBaseReason=market.latestStatus==='DELAYED'?'等待最新收盘行情，暂按基础定投':market.latestStatus==='AGING'?'行情偏旧，暂按基础定投':market.latestStatus==='STALE'?'行情已过期，按基础定投':'行情不可用，按基础定投';
+    const reasons={HARD_LIMIT_REACHED:'当前在场本金已达到当年度硬上限',MAX_TERM_REASSESS:'已满5年且目标未完成，不自动无限延长',MAX_TERM_TARGET_REACHED:'已满5年且目标已完成，进入退出或降仓阶段',XIRR_TAKE_PROFIT:'已满3年且接管后XIRR进入分批止盈区',POSITION_19_SLOWDOWN:'本金仓位≥19%，主动减速至50元/交易日',POSITION_18_CAP:'本金仓位≥18%，市场加码上限100元/交易日',MARKET_THREE_FACTOR:'三因素市场模型触发',MARKET_BASE_ONLY:marketBaseReason};
+    return {action:result.action,amount:result.amountCent,text:labels[result.action]||(result.amountCent/100+'元/交易日'),reason:result.reasonCodes.map(x=>reasons[x]||x).join('；'),reasonCodes:result.reasonCodes,cashUse:result.funding.cashPoolCent,ext:result.funding.externalCent,market};
  }
 };
 
@@ -322,7 +352,7 @@ const App={
  async openRecommendationDetails(){
    const m=await Calc.metrics(),r=await Engine.recommend(m),market=r.market||await Market.status();
    const base=m.strategy?.baseRecurringAmountCent||0;
-   const marketUsable=market.available&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN';
+    const marketUsable=market.available&&market.decisionReady!==false&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN';
    const candidate=marketUsable?market.candidateCent:base;
    const level=candidate/100;
    let factors='';
@@ -335,7 +365,7 @@ const App={
        <div class="decision-row"><div class="row"><b>近250日高点回撤</b>${this.decisionMark(ddPass,ddPass===null?'参考':'')}</div><div>${pctBp(market.drawdownBp)}</div><div class="small">${ddNote}</div></div>
        <div class="decision-row"><div class="row"><b>近3年位置</b>${this.decisionMark(posPass,posPass===null?'参考':'')}</div><div>${pctBp(market.threeYearPositionBp)}</div><div class="small">${posNote}</div></div>
        <div class="decision-row"><div class="row"><b>MA200趋势</b>${this.decisionMark(maPass,maPass===null?'参考':'')}</div><div>${market.belowMA200?'当前低于MA200':'当前不低于MA200'}</div><div class="small">${maNote}</div></div>
-       <div class="decision-row"><div class="row"><b>行情时效</b>${this.decisionMark(marketUsable,market.freshness)}</div><div>数据截至 ${market.asOfDate}</div><div class="small">${marketUsable?'允许使用三因素模型':'已回退到基础定投'}</div></div>`;
+       <div class="decision-row"><div class="row"><b>行情时效</b>${this.decisionMark(marketUsable,market.latestStatusText||market.freshness)}</div><div>数据截至 ${market.asOfDate}；应有 ${market.expectedLatestTradingDate||'无法判断'}</div><div class="small">${marketUsable?'允许生成下一交易日三因素建议':'等待最新收盘行情或已按时效降级'}</div></div>`;
    }else{
      factors=`<div class="decision-row"><div class="row"><b>市场行情</b>${this.decisionMark(false,'不可用')}</div><div class="small">${market.reason||'无法读取三因素行情，按基础定投判断'}</div></div>`;
    }
@@ -349,7 +379,7 @@ const App={
      <div class="row"><h2>今日建议为什么这样判断</h2><span class="badge">${this.actionLabel(r.action)}</span></div>
      <div class="decision-summary"><b>最终建议：${actionText}</b><div class="small" style="margin-top:4px;color:inherit">${r.reason||'按当前策略规则计算'}</div></div>
      <h3>1. 市场候选档位：${level}元</h3>
-     <div class="small" style="margin-bottom:8px">${marketUsable?this.marketRule(candidate):'行情不可用或过期，使用基础定投金额'}</div>
+     <div class="small" style="margin-bottom:8px">${marketUsable?this.marketRule(candidate):(market.latestStatusText||'行情不可用')+'，使用基础定投金额'}</div>
      <div class="decision-list">${factors}</div>
      <h3 style="margin-top:16px">2. 仓位与硬上限</h3>
      <div class="decision-list"><div class="decision-row">${positionText}</div><div class="decision-row">${hardText}</div></div>
@@ -373,6 +403,7 @@ const App={
    $('btnExport').onclick=()=>this.exportBackup();
     $('btnImport').onclick=()=>$('importFile').click();
     $('importFile').onchange=e=>this.importBackup(e.target.files[0]);
+    $('btnMarketRefresh').onclick=()=>this.refreshMarket();
     $('recommendCard').onclick=()=>this.openRecommendationDetails();
     $('recommendCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.openRecommendationDetails()}};
    if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
@@ -401,7 +432,7 @@ const App={
    });
    await this.refreshAll();
  },
- async refreshAll(){
+  async refreshAll(){
    const ini=await this.initialized();
    $('initCard').classList.toggle('hidden',ini);$('homeContent').classList.toggle('hidden',!ini);
    if(!ini)return;
@@ -415,14 +446,15 @@ const App={
    $('positionBar').style.width=Math.min(100,m.positionBp/20)+'%';
    $('positionBadge').textContent=m.positionBp>=1900?'二级警戒':m.positionBp>=1800?'一级警戒':m.positionBp>=1500?'目标附近':'低于目标';
    $('positionBadge').className='badge '+(m.positionBp>=1900?'red':m.positionBp>=1800?'orange':m.positionBp>=1500?'green':'');
-   $('recommendText').textContent=r.text;$('recommendReason').textContent=r.reason||'—';
+    $('recommendHeading').textContent=r.market?.recommendationDate?`${r.market.recommendationDate} 策略建议`:r.market?.latestStatus==='DELAYED'?'基础规则建议（等待最新行情）':'策略建议';
+    $('recommendText').textContent=r.text;$('recommendReason').textContent=r.reason||'—';
    $('fundingText').textContent=r.amount?`现金池 ${yuan(r.cashUse||0)} / 外部 ${yuan(r.ext||0)}`:'—';
    $('recommendBadge').textContent=r.action;
    $('xirrBadge').textContent='接管后';
    await this.renderTodos(m);
    const market=r.market||await Market.status();
-   $('marketConnection').textContent=market.available?`中证1000（${market.indexCode}）行情截至 ${market.asOfDate}，状态 ${market.freshness}`:market.reason;
-   $('marketConnection').className='notice '+(market.available&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN'?'ok':'error');
+    $('marketConnection').textContent=market.available?`中证1000行情截至 ${market.asOfDate} · ${market.sourceLabel||market.source} · ${market.latestStatusText||market.freshness}`:market.reason;
+    $('marketConnection').className='notice '+(market.available&&market.latestStatus==='LATEST'?'ok':market.available?'':'error');
  },
  async renderTodos(m){
    const list=[];
@@ -521,7 +553,7 @@ const App={
    });
    $('cashAmount').value='';await this.refreshAll();
  },
- async takeProfit(){
+  async takeProfit(){
    const amount=cents($('redeemAmount').value),m=await Calc.metrics();
    if(amount<=0)return;if(!m.cal||m.fund<=0){alert('请先完成人工校准');return}if(amount>m.fund){alert('赎回金额不能超过当前基金市值');return}
    let allocation;try{allocation=StrategyCore.takeProfitCostAllocation(m.fund,m.principal,amount)}catch(e){alert('赎回参数无效');return}
@@ -531,15 +563,36 @@ const App={
      tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'TAKE_PROFIT_IN',amountCent:amount,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});
      tx.objectStore('calibration_snapshots').put({id:'cal-'+Date.now(),snapshotDate:dt,snapshotAt:now,fundMarketValueCent:remainingFund,totalSharesMicro:remainingShares,impliedNavScaled:remainingShares?Math.round(remainingFund/100/(remainingShares/1e6)*1e6):0,inMarketPrincipalCent:allocation.remainingPrincipalCent,cashPoolBalanceCent:cashAfter,strategyTotalAssetsCent:remainingFund+cashAfter,source:'TAKE_PROFIT',createdAt:now});
    });
-   $('redeemAmount').value='';await this.renderRecords();await this.refreshAll();alert(`已转入现金池 ${yuan(amount)}，其中退出本金 ${yuan(allocation.exitedPrincipalCent)}，实现收益 ${yuan(allocation.realizedGainCent)}`);
- },
- async renderAnalysis(){
-   const m=await Calc.metrics(),market=await Market.status();$('aXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';$('aAssets').textContent=yuan(m.total);$('aPrincipal').textContent=yuan(m.principal);$('aCash').textContent=yuan(m.cash);
-   $('marketDrawdown').textContent=market.available?pctBp(market.drawdownBp):'无数据';$('market3y').textContent=market.available?pctBp(market.threeYearPositionBp):'无数据';$('marketMA').textContent=market.available?(market.belowMA200?'低于MA200':'不低于MA200'):'无数据';$('marketFresh').textContent=market.available?`${market.freshness} · ${market.asOfDate}`:market.reason;
-   $('analysisNotice').textContent=market.available?(market.freshness==='STALE'||market.freshness==='UNKNOWN'?'行情已过期或无法可靠计算交易日距离，市场加码已禁用':'公开行情已加载，三因素在本机计算。'):market.reason;
-   $('marketConnection').textContent=market.available?`中证1000（${market.indexCode}）行情截至 ${market.asOfDate}，状态 ${market.freshness}`:market.reason;
-   $('marketConnection').className='notice '+(market.available&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN'?'ok':'error');
- },
+    $('redeemAmount').value='';await this.renderRecords();await this.refreshAll();alert(`已转入现金池 ${yuan(amount)}，其中退出本金 ${yuan(allocation.exitedPrincipalCent)}，实现收益 ${yuan(allocation.realizedGainCent)}`);
+  },
+  formatMarketTime(value){
+    if(!value)return '—';
+    const date=new Date(value);if(Number.isNaN(date.getTime()))return String(value);
+    return date.toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false});
+  },
+  async refreshMarket(){
+    const button=$('btnMarketRefresh'),box=$('marketUpdateResult');
+    button.disabled=true;button.textContent='更新中…';box.className='notice';box.textContent='正在直连东方财富获取中证1000公开日K。';
+    try{
+      const result=await Market.refresh(),status=await Market.status();
+      let message=result.message;
+      if(result.outcome==='MANUAL_DIRECT'&&status.recommendationDate)message=`已更新至${status.asOfDate}收盘数据，${status.recommendationDate}策略建议已重新计算。`;
+      box.textContent=message;box.className='notice '+(result.outcome==='LOCAL_CACHE'?'':'ok');
+      await this.refreshAll();await this.renderAnalysis();
+    }catch(error){
+      box.textContent='行情更新失败，且没有可用的本地缓存。';box.className='notice error';
+    }finally{button.disabled=false;button.textContent='更新行情'}
+  },
+  async renderAnalysis(){
+    const m=await Calc.metrics(),market=await Market.status();$('aXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';$('aAssets').textContent=yuan(m.total);$('aPrincipal').textContent=yuan(m.principal);$('aCash').textContent=yuan(m.cash);
+    $('marketDrawdown').textContent=market.available?pctBp(market.drawdownBp):'无数据';$('market3y').textContent=market.available?pctBp(market.threeYearPositionBp):'无数据';$('marketMA').textContent=market.available?(market.belowMA200?'低于MA200':'不低于MA200'):'无数据';
+    $('marketAsOf').textContent=market.available?market.asOfDate:'—';$('marketExpected').textContent=market.available?(market.expectedLatestTradingDate||'无法判断'):'—';$('marketRecommendationDate').textContent=market.available?(market.recommendationDate||'等待最新收盘行情'):'—';
+    $('marketSource').textContent=market.available?(market.sourceLabel||market.source):'—';$('marketUpdated').textContent=market.available?this.formatMarketTime(market.fetchedAt):'—';$('marketFresh').textContent=market.available?(market.latestStatusText||market.freshness):market.reason;
+    $('analysisNotice').textContent=market.available?(market.decisionReady?'行情已满足应有交易日，三因素在本机计算并用于下一交易日建议。':'最新收盘行情尚未满足应有交易日，新的市场加码建议已暂停，仓位与硬上限规则继续有效。'):market.reason;
+    $('analysisNotice').className='notice '+(market.available&&market.decisionReady?'ok':market.available?'':'error');
+    $('marketConnection').textContent=market.available?`中证1000行情截至 ${market.asOfDate} · ${market.sourceLabel||market.source} · ${market.latestStatusText||market.freshness}`:market.reason;
+    $('marketConnection').className='notice '+(market.available&&market.latestStatus==='LATEST'?'ok':market.available?'':'error');
+  },
  async saveStrategy(){
    const effective=$('sEffective').value;if(!effective||effective<today()){alert('新策略版本生效日期不能早于今天');return}
    const cur=await this.currentStrategy(),all=await DB.all('strategy_versions'),ver='1.'+all.length,id='strategy-'+Date.now(),base=cents($('sBase').value),hardPct=Number($('sHardBp').value),now=new Date().toISOString();
