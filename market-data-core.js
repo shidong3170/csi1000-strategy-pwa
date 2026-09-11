@@ -8,7 +8,10 @@
   const CUT_OFF_MINUTES=18*60+30;
 
   function isoDate(value){
-    return /^\d{4}-\d{2}-\d{2}$/.test(String(value||''));
+    const text=String(value||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+    const parsed=new Date(text+'T00:00:00Z');
+    return !Number.isNaN(parsed.getTime())&&parsed.toISOString().slice(0,10)===text;
   }
 
   function normalizeItems(items){

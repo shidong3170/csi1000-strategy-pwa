@@ -18,6 +18,9 @@ assert.match(html,/PWA V1\.0\.4/);
 assert.match(readme,/PWA V1\.0\.4/);
 assert.match(githubReadme,/V1\.0\.4/);
 assert.doesNotMatch(html,/else\s*\{\s*const dow=d\.getDay\(\);\s*isTrading=/);
+assert.match(html,/DB_VERSION=2/);
+assert.match(html,/keyPath:s==='market_daily'\?'date':'id'/);
+assert.match(html,/closeScaled:Math\.round/);
 
 for(const file of ['strategy-core.js','market-data-core.js','market-provider.js']) {
   new Function(fs.readFileSync(path.join(root,file),'utf8'));

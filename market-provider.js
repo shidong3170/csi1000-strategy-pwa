@@ -8,6 +8,7 @@
 (function(){
   const Core=window.MarketDataCore;
   const STORAGE_ID='csi1000-history';
+  const REQUEST_TIMEOUT_MS=Number(window.MARKET_REQUEST_TIMEOUT_MS)||12000;
   const SOURCE_LABELS={MANUAL_DIRECT:'MANUAL_DIRECT · 东方财富手动直连',GITHUB_AUTO:'GITHUB_AUTO · GitHub自动行情',LOCAL_CACHE:'LOCAL_CACHE · 手机本地缓存'};
   let sessionDataset=null;
   let staticAttempted=false;
@@ -62,7 +63,7 @@
   }
 
   async function fetchStatic(){
-    const response=await fetch(`./data/csi1000-history.json?refresh=${Date.now()}`,{cache:'no-store'});
+    const response=await fetchWithTimeout(`./data/csi1000-history.json?refresh=${Date.now()}`,{cache:'no-store'});
     if(!response.ok) throw new Error(`GITHUB_STATIC_HTTP_${response.status}`);
     return Core.validateDataset(await response.json(),'GITHUB_AUTO');
   }
@@ -72,8 +73,15 @@
     return `https://push2his.eastmoney.com/api/qt/stock/kline/get?${params}`;
   }
 
+  async function fetchWithTimeout(url,options={}){
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
+    try{return await fetch(url,{...options,signal:controller.signal})}
+    finally{clearTimeout(timeout)}
+  }
+
   async function fetchDirect(){
-    const response=await fetch(eastmoneyUrl(),{method:'GET',mode:'cors',cache:'no-store',credentials:'omit'});
+    const response=await fetchWithTimeout(eastmoneyUrl(),{method:'GET',mode:'cors',cache:'no-store',credentials:'omit'});
     if(!response.ok) throw new Error(`MANUAL_DIRECT_HTTP_${response.status}`);
     return Core.parseEastmoneyResponse(await response.json());
   }

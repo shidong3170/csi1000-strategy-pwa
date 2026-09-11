@@ -12,6 +12,8 @@
 - 手机手动更新时优先直接读取公开日K（`MANUAL_DIRECT`）；
 - 直连失败时读取 GitHub Pages 同源静态JSON（`GITHUB_AUTO`）；
 - 网络通道均失败时读取设备 IndexedDB 行情缓存（`LOCAL_CACHE`）；
+- IndexedDB中的行情按交易日保存，以日期为主键，收盘点位采用 `1e-4` 固定精度整数；
+- 网络行情请求12秒未完成时视为失败并进入下一通道；
 - GitHub Actions定时抓取并保存为 `data/csi1000-history.json`；
 - 三因素全部在手机本地计算。
 

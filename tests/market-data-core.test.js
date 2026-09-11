@@ -25,6 +25,10 @@ const duplicate=items();duplicate[199]={...duplicate[198]};
 assert.throws(()=>core.validateDataset({indexCode:'000852',items:duplicate}),/DATES_NOT_STRICTLY_INCREASING/);
 const invalidClose=items();invalidClose[199].close=0;
 assert.throws(()=>core.validateDataset({indexCode:'000852',items:invalidClose}),/INVALID_CLOSE/);
+const invalidDate=items();invalidDate[199].date='2026-99-99';
+assert.throws(()=>core.validateDataset({indexCode:'000852',items:invalidDate}),/INVALID_DATE/);
+const impossibleDate=items();impossibleDate[199].date='2026-02-30';
+assert.throws(()=>core.validateDataset({indexCode:'000852',items:impossibleDate}),/INVALID_DATE/);
 
 const newer=core.validateDataset({indexCode:'000852',source:'MANUAL_DIRECT',items:items(200,'2026-09-11')});
 const older=core.validateDataset({indexCode:'000852',source:'GITHUB_AUTO',items:items(200,'2026-09-10')});
@@ -50,11 +54,12 @@ assert.match(providerSource,/csi1000-history\.json\?refresh=/);
 assert.doesNotMatch(providerSource,/body\s*:/);
 for(const source of ['MANUAL_DIRECT','GITHUB_AUTO','LOCAL_CACHE']) assert.match(providerSource,new RegExp(source));
 
-  async function runProvider({directOk,staticOk,initial}){
+  async function runProvider({directOk,staticOk,initial,directHangs=false}){
     let saved=initial?{id:'csi1000-history',...initial}:null;
-    const sandbox={console,URLSearchParams,Date,Intl,Map,Error,window:{MarketDataCore:core,StrategyCore:strategy,MarketStorage:{get:async()=>saved,put:async value=>{saved=value}}}};
-    sandbox.fetch=async url=>{
+    const sandbox={console,URLSearchParams,Date,Intl,Map,Error,AbortController,setTimeout,clearTimeout,window:{MARKET_REQUEST_TIMEOUT_MS:5,MarketDataCore:core,StrategyCore:strategy,MarketStorage:{get:async()=>saved,put:async value=>{saved=value}}}};
+    sandbox.fetch=async (url,options={})=>{
       const direct=String(url).includes('push2his.eastmoney.com');
+      if(direct&&directHangs)return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new Error('ABORTED')),{once:true}));
       if((direct&&!directOk)||(!direct&&!staticOk)) throw new Error('NETWORK_FAIL');
       return {ok:true,json:async()=>direct?eastmoneyPayload():({indexCode:'000852',fetchedAt:'2026-09-11T10:00:00Z',items:items()})};
     };
@@ -71,6 +76,8 @@ for(const source of ['MANUAL_DIRECT','GITHUB_AUTO','LOCAL_CACHE']) assert.match(
   scenario=await runProvider({directOk:false,staticOk:false,initial:newer});
   assert.equal(scenario.result.outcome,'LOCAL_CACHE');
   assert.equal(scenario.saved.source,'MANUAL_DIRECT');
+  scenario=await runProvider({directOk:false,directHangs:true,staticOk:true,initial:older});
+  assert.equal(scenario.result.outcome,'GITHUB_AUTO');
 
   console.log('market-data-core: all channel and calendar checks passed');
 })().catch(error=>{console.error(error);process.exitCode=1});

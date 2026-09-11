@@ -216,7 +216,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 <script src="./market-data-core.js"></script>
 <script src="./market-provider.js"></script>
 <script>
-const DB_NAME='CSI1000StrategyDB', DB_VERSION=1;
+const DB_NAME='CSI1000StrategyDB', DB_VERSION=2;
 const STORES=['app_meta','initialization_baseline','strategy_versions','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
 
 const $=id=>document.getElementById(id);
@@ -232,10 +232,12 @@ class DB{
  static async open(){
    if(this.db)return this.db;
    this.db=await new Promise((res,rej)=>{
-     const r=indexedDB.open(DB_NAME,DB_VERSION);
-     r.onupgradeneeded=e=>{
-       const db=e.target.result;
-       for(const s of STORES) if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:'id'});
+      const r=indexedDB.open(DB_NAME,DB_VERSION);
+      r.onupgradeneeded=e=>{
+        const db=e.target.result;
+        // V2仅重建可再下载的公开行情缓存；私人投资数据所在的其他store保持原样。
+        if(e.oldVersion<2&&db.objectStoreNames.contains('market_daily')) db.deleteObjectStore('market_daily');
+        for(const s of STORES) if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:s==='market_daily'?'date':'id'});
      };
      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
    }); return this.db;
@@ -255,8 +257,19 @@ class DB{
 }
 
 window.MarketStorage={
-  get:id=>DB.get('market_daily',id),
-  put:record=>DB.put('market_daily',record)
+  async get(){
+    const rows=(await DB.all('market_daily')).filter(x=>x.valid!==false&&x.indexCode==='000852'&&Number.isInteger(x.closeScaled)&&x.closeScaled>0).sort((a,b)=>a.date.localeCompare(b.date));
+    if(rows.length<200)return null;
+    const latest=rows[rows.length-1];
+    return {indexCode:'000852',indexName:'中证1000',source:latest.source||'LOCAL_CACHE',fetchedAt:latest.fetchedAt,items:rows.map(x=>({date:x.date,close:x.closeScaled/10000}))};
+  },
+  async put(record){
+    await DB.atomic(['market_daily'],tx=>{
+      const store=tx.objectStore('market_daily');store.clear();
+      for(const item of record.items) store.put({date:item.date,indexCode:'000852',closeScaled:Math.round(Number(item.close)*10000),source:record.source,fetchedAt:record.fetchedAt,valid:true});
+    });
+    return record;
+  }
 };
 
 const Calc={
