@@ -33,6 +33,7 @@ h2{font-size:17px;margin:3px 0 10px}h3{font-size:15px;margin:8px 0}
 hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;border-bottom:1px solid var(--line);text-align:left}
 .code{font-family:ui-monospace,monospace;background:#f4f5f7;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap}
+.recommendation-card{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}.recommendation-card:active{transform:scale(.995)}.recommendation-card:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}.recommend-hint{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:10px;color:var(--blue);font-size:12px;font-weight:600}.decision-summary{padding:12px;border-radius:12px;background:#edf3ff;color:#174ea6;margin-bottom:12px}.decision-list{display:flex;flex-direction:column;gap:8px}.decision-row{padding:10px;border:1px solid var(--line);border-radius:11px}.decision-row .row{align-items:flex-start}.decision-row b{font-size:14px}.decision-mark{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;font-weight:700}.decision-mark.pass{background:#e7f7ef;color:var(--green)}.decision-mark.fail{background:#f3f4f6;color:var(--muted)}.decision-mark.info{background:#edf3ff;color:var(--blue)}
 </style>
 </head>
 <body>
@@ -59,12 +60,13 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
   </div>
 
   <div id="homeContent" class="hidden">
-    <div class="card">
+    <div id="recommendCard" class="card recommendation-card" role="button" tabindex="0" aria-haspopup="dialog" aria-label="查看今日策略建议的判断依据">
       <div class="row"><h2>今日策略建议</h2><span id="recommendBadge" class="badge">计算中</span></div>
       <div id="recommendText" style="font-size:20px;font-weight:700;margin:8px 0">—</div>
       <div id="recommendReason" class="small">—</div>
       <hr>
       <div class="row"><span class="small">建议资金来源</span><b id="fundingText">—</b></div>
+      <div class="recommend-hint">点击查看判断依据 <span aria-hidden="true">›</span></div>
     </div>
 
     <div class="grid">
@@ -309,6 +311,53 @@ const Engine={
 const App={
  async strategyForDate(date){return (await DB.all('strategy_versions')).filter(x=>x.effectiveFrom<=date&&(!x.effectiveTo||x.effectiveTo>=date)).sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0]||null},
  async currentStrategy(){return this.strategyForDate(today())},
+ actionLabel(action){return ({INCREASE_RECURRING:'增加定投',MAINTAIN_RECURRING:'维持定投',REDUCE_RECURRING:'减少定投',STOP_NEW_INVESTMENT:'停止新增',REASSESS_STRATEGY:'重新评估策略',EXIT_OR_DE_RISK:'退出或降低风险',TAKE_PROFIT_TO_CASH_POOL:'止盈转入现金池'})[action]||action},
+ marketRule(candidateCent){
+   if(candidateCent>=30000)return '回撤≥30%，近3年位置≤20%，并且低于MA200';
+   if(candidateCent>=20000)return '回撤≥20%，并且近3年位置≤30%';
+   if(candidateCent>=15000)return '回撤≥10%，并且“近3年位置≤40%”或“低于MA200”至少满足一项';
+   return '未满足150/200/300元加码组合，采用基础定投';
+ },
+ decisionMark(pass,label){return `<span class="decision-mark ${pass===null?'info':pass?'pass':'fail'}">${label||(pass?'满足':'未满足')}</span>`},
+ async openRecommendationDetails(){
+   const m=await Calc.metrics(),r=await Engine.recommend(m),market=r.market||await Market.status();
+   const base=m.strategy?.baseRecurringAmountCent||0;
+   const marketUsable=market.available&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN';
+   const candidate=marketUsable?market.candidateCent:base;
+   const level=candidate/100;
+   let factors='';
+   if(market.available){
+     let ddPass=null,posPass=null,maPass=null,ddNote='当前值',posNote='当前值',maNote='当前状态';
+     if(level>=300){ddPass=market.drawdownBp>=3000;posPass=market.threeYearPositionBp<=2000;maPass=market.belowMA200;ddNote='要求≥30%';posNote='要求≤20%';maNote='要求低于MA200'}
+     else if(level>=200){ddPass=market.drawdownBp>=2000;posPass=market.threeYearPositionBp<=3000;ddNote='要求≥20%';posNote='要求≤30%'}
+     else if(level>=150){ddPass=market.drawdownBp>=1000;posPass=market.threeYearPositionBp<=4000;maPass=market.belowMA200;ddNote='要求≥10%';posNote='要求≤40%，与MA200二选一';maNote='与近3年位置二选一'}
+     factors=`
+       <div class="decision-row"><div class="row"><b>近250日高点回撤</b>${this.decisionMark(ddPass,ddPass===null?'参考':'')}</div><div>${pctBp(market.drawdownBp)}</div><div class="small">${ddNote}</div></div>
+       <div class="decision-row"><div class="row"><b>近3年位置</b>${this.decisionMark(posPass,posPass===null?'参考':'')}</div><div>${pctBp(market.threeYearPositionBp)}</div><div class="small">${posNote}</div></div>
+       <div class="decision-row"><div class="row"><b>MA200趋势</b>${this.decisionMark(maPass,maPass===null?'参考':'')}</div><div>${market.belowMA200?'当前低于MA200':'当前不低于MA200'}</div><div class="small">${maNote}</div></div>
+       <div class="decision-row"><div class="row"><b>行情时效</b>${this.decisionMark(marketUsable,market.freshness)}</div><div>数据截至 ${market.asOfDate}</div><div class="small">${marketUsable?'允许使用三因素模型':'已回退到基础定投'}</div></div>`;
+   }else{
+     factors=`<div class="decision-row"><div class="row"><b>市场行情</b>${this.decisionMark(false,'不可用')}</div><div class="small">${market.reason||'无法读取三因素行情，按基础定投判断'}</div></div>`;
+   }
+   let positionText=`当前本金仓位 ${pctBp(m.positionBp)}，低于18%警戒线，未压低市场候选金额。`;
+   let positionCandidate=candidate;
+   if(m.positionBp>=1900){positionCandidate=5000;positionText=`当前本金仓位 ${pctBp(m.positionBp)}，达到19%减速线，金额限制为50元/交易日。`}
+   else if(m.positionBp>=1800){positionCandidate=Math.min(positionCandidate,10000);positionText=`当前本金仓位 ${pctBp(m.positionBp)}，处于18%～19%警戒区，金额最高100元/交易日。`}
+   const hardText=m.remaining<=0?'已达到当年硬上限，本次停止新增。':m.remaining<positionCandidate?`剩余额度 ${yuan(m.remaining)}，最终金额被限制在该额度内。`:`剩余可部署额度 ${yuan(m.remaining)}，未限制本次建议。`;
+   const actionText=r.amount?`${r.amount/100}元/交易日`:'0元';
+   $('modalSheet').innerHTML=`
+     <div class="row"><h2>今日建议为什么这样判断</h2><span class="badge">${this.actionLabel(r.action)}</span></div>
+     <div class="decision-summary"><b>最终建议：${actionText}</b><div class="small" style="margin-top:4px;color:inherit">${r.reason||'按当前策略规则计算'}</div></div>
+     <h3>1. 市场候选档位：${level}元</h3>
+     <div class="small" style="margin-bottom:8px">${marketUsable?this.marketRule(candidate):'行情不可用或过期，使用基础定投金额'}</div>
+     <div class="decision-list">${factors}</div>
+     <h3 style="margin-top:16px">2. 仓位与硬上限</h3>
+     <div class="decision-list"><div class="decision-row">${positionText}</div><div class="decision-row">${hardText}</div></div>
+     <h3 style="margin-top:16px">3. 资金来源</h3>
+     <div class="decision-row">优先使用现金池 ${yuan(r.cashUse||0)}，其余由外部资金 ${yuan(r.ext||0)} 补足。</div>
+     <button style="width:100%;margin-top:16px" onclick="App.closeModal()">我知道了</button>`;
+   $('modal').classList.remove('hidden');
+ },
  async initialized(){return !!(await DB.get('app_meta','app'))?.initialized},
  async init(){
    await DB.open();
@@ -322,8 +371,10 @@ const App={
    $('btnCashAction').onclick=()=>this.cashAction();
    $('btnRedeem').onclick=()=>this.takeProfit();
    $('btnExport').onclick=()=>this.exportBackup();
-   $('btnImport').onclick=()=>$('importFile').click();
-   $('importFile').onchange=e=>this.importBackup(e.target.files[0]);
+    $('btnImport').onclick=()=>$('importFile').click();
+    $('importFile').onchange=e=>this.importBackup(e.target.files[0]);
+    $('recommendCard').onclick=()=>this.openRecommendationDetails();
+    $('recommendCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.openRecommendationDetails()}};
    if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
    if(navigator.storage?.persist) navigator.storage.persist().catch(()=>{});
    await this.refreshAll();

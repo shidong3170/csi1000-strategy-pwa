@@ -7,6 +7,9 @@ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(x=>x[1]).filter(Boolean);
 for(const source of inline) new Function(source);
 assert.match(html,/\.\/strategy-core\.js/);
+assert.match(html,/id="recommendCard"/);
+assert.match(html,/openRecommendationDetails/);
+assert.match(html,/近250日高点回撤/);
 assert.doesNotMatch(html,/else\s*\{\s*const dow=d\.getDay\(\);\s*isTrading=/);
 
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));
