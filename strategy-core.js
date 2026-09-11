@@ -101,7 +101,7 @@
     if(holdingYears>=3&&canUseXirr&&xirrRate>=0.10) return {action:'TAKE_PROFIT_TO_CASH_POOL',amountCent:0,reasonCodes:['XIRR_TAKE_PROFIT'],funding:fundingSourceSplit(0,cashPoolCent)};
     let candidate=strategy.baseRecurringAmountCent;
     const reasons=[];
-    if(market&&market.available&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN'){
+    if(market&&market.available&&market.decisionReady!==false&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN'){
       candidate=market.candidateCent;
       reasons.push('MARKET_THREE_FACTOR');
     }else reasons.push('MARKET_BASE_ONLY');

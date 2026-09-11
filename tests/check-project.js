@@ -9,13 +9,19 @@ const githubReadme=fs.readFileSync(path.join(root,'README_GITHUB.md'),'utf8');
 const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(x=>x[1]).filter(Boolean);
 for(const source of inline) new Function(source);
 assert.match(html,/\.\/strategy-core\.js/);
+assert.match(html,/\.\/market-data-core\.js/);
 assert.match(html,/id="recommendCard"/);
+assert.match(html,/id="btnMarketRefresh"/);
 assert.match(html,/openRecommendationDetails/);
 assert.match(html,/近250日高点回撤/);
-assert.match(html,/PWA V1\.0\.3/);
-assert.match(readme,/PWA V1\.0\.3/);
-assert.match(githubReadme,/V1\.0\.3/);
+assert.match(html,/PWA V1\.0\.4/);
+assert.match(readme,/PWA V1\.0\.4/);
+assert.match(githubReadme,/V1\.0\.4/);
 assert.doesNotMatch(html,/else\s*\{\s*const dow=d\.getDay\(\);\s*isTrading=/);
+
+for(const file of ['strategy-core.js','market-data-core.js','market-provider.js']) {
+  new Function(fs.readFileSync(path.join(root,file),'utf8'));
+}
 
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));
 assert.equal(manifest.start_url,'./index.html');
@@ -35,8 +41,8 @@ assert.equal(new Set(dates).size,dates.length);
 assert.ok(market.items.every(x=>Number(x.close)>0));
 
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-assert.match(sw,/csi1000-pwa-v1\.0\.3/);
-for(const asset of ['./strategy-core.js','./market-provider.js','./data/csi1000-history.json']) assert.ok(sw.includes(asset));
+assert.match(sw,/csi1000-pwa-v1\.0\.4/);
+for(const asset of ['./strategy-core.js','./market-data-core.js','./market-provider.js','./data/csi1000-history.json']) assert.ok(sw.includes(asset));
 new Function(sw);
 
 console.log(`project checks passed: ${market.items.length} market rows, ${Object.keys(calendar.closures).length} weekday closures`);
