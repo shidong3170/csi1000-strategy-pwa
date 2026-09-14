@@ -36,12 +36,13 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 .recommendation-card{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}.recommendation-card:active{transform:scale(.995)}.recommendation-card:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}.recommend-hint{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:10px;color:var(--blue);font-size:12px;font-weight:600}.decision-summary{padding:12px;border-radius:12px;background:#edf3ff;color:#174ea6;margin-bottom:12px}.decision-list{display:flex;flex-direction:column;gap:8px}.decision-row{padding:10px;border:1px solid var(--line);border-radius:11px}.decision-row .row{align-items:flex-start}.decision-row b{font-size:14px}.decision-mark{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;font-weight:700}.decision-mark.pass{background:#e7f7ef;color:var(--green)}.decision-mark.fail{background:#f3f4f6;color:var(--muted)}.decision-mark.info{background:#edf3ff;color:var(--blue)}
 .metric-link{cursor:pointer;transition:background .12s ease,transform .12s ease}.metric-link:active{transform:scale(.985);background:#f7faff}.metric-link:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}.metric-link .view-hint{display:block;color:var(--blue);font-size:12px;margin-top:4px}.detail-hero b{display:block;font-size:26px;margin:6px 0}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.detail-cell{padding:10px;border:1px solid var(--line);border-radius:11px}.detail-cell b{display:block;margin-top:4px}.formula{padding:11px;border-radius:10px;background:#f4f7fc;font-family:ui-monospace,monospace;font-size:13px;overflow-wrap:anywhere}.back-button{padding:8px 10px;margin-bottom:10px}.signed-positive{color:var(--green)}.signed-negative{color:var(--red)}
 .status-line{display:flex;gap:6px;flex-wrap:wrap}.badge.pending{background:#edf3ff;color:var(--blue)}.badge.executed{background:#e7f7ef;color:var(--green)}.badge.not-executed{background:#fff3df;color:var(--orange)}.badge.blocked{background:#fde8e8;color:var(--red)}.badge.modified{background:#fff4c2;color:#805600;cursor:pointer}.audit-warning{margin-top:8px;color:var(--red);font-size:12px}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.action-row button{padding:8px 10px}
+.badge.share-pending{background:#edf3ff;color:var(--blue)}.badge.share-confirmed{background:#e7f7ef;color:var(--green)}.badge.share-corrected{background:#fff4c2;color:#805600}.badge.share-na{background:#f3f4f6;color:var(--muted)}.metric .subvalue{display:block;font-size:12px;color:var(--muted);margin-top:3px}.section-note{margin:8px 0 12px}.source-separation{border-left:4px solid var(--blue)}
 </style>
 </head>
 <body>
 <header>
   <div class="title">中证1000策略助手</div>
-  <div class="small" id="headerSub">本地数据 · PWA V1.0.7</div>
+  <div class="small" id="headerSub">本地数据 · PWA V1.0.8</div>
 </header>
 
 <main>
@@ -76,8 +77,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
     <div class="grid">
       <div id="principalCard" class="metric metric-link" role="button" tabindex="0" aria-label="查看当前在场本金计算依据"><span class="small">当前在场本金</span><b id="mPrincipal">—</b><span id="mPosition" class="small">—</span><span class="view-hint">查看依据 ›</span></div>
       <div class="metric"><span class="small">现金池</span><b id="mCashPool">—</b><span class="small">策略内部资金</span></div>
-      <div id="fundValueCard" class="metric metric-link" role="button" tabindex="0" aria-label="查看基金市值依据"><span class="small">基金市值</span><b id="mMarketValue">—</b><span id="mCalFresh" class="small">—</span><span class="view-hint">查看依据 ›</span></div>
-      <div class="metric"><span class="small">策略总资产</span><b id="mTotalAssets">—</b><span class="small">基金 + 现金池</span></div>
+      <div id="fundValueCard" class="metric metric-link" role="button" tabindex="0" aria-label="查看基金市值依据"><span class="small">最近真实校准市值</span><b id="mMarketValue">—</b><span id="mCalFresh" class="small">—</span><span class="view-hint">查看依据 ›</span></div>
+      <div class="metric"><span class="small">当前自动模拟市值</span><b id="mSimulatedValue">—</b><span id="mSimulatedStatus" class="small">非真实账户余额</span></div>
+      <div class="metric"><span class="small">当前递推份额</span><b id="mDerivedShares">—</b><span id="mPendingShares" class="small">—</span></div>
+      <div class="metric"><span class="small">正式策略总资产</span><b id="mTotalAssets">—</b><span class="small">真实校准市值 + 现金池</span></div>
     </div>
 
     <div class="card">
@@ -91,7 +94,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
     <div class="card">
       <div class="row"><h2>收益状态</h2><span id="xirrBadge" class="badge">接管后</span></div>
       <div class="grid">
-        <div class="metric"><span class="small">接管后策略XIRR</span><b id="mXirr">—</b><span class="small">目标 ≥ 6%</span></div>
+        <div class="metric"><span class="small">正式接管后策略XIRR</span><b id="mXirr">—</b><span class="small">真实校准终值 · 目标 ≥ 6%</span></div>
+        <div class="metric"><span class="small">模拟接管后策略XIRR</span><b id="mSimulatedXirr">—</b><span class="small">自动模拟，不作为正式业绩</span></div>
         <div class="metric"><span class="small">有效定投期数</span><b id="mCycles">—</b><span class="small">历史171期 + 接管后</span></div>
       </div>
     </div>
@@ -116,8 +120,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
   <div class="card">
     <h2>收益分析</h2>
     <div class="grid">
-      <div class="metric"><span class="small">接管后策略XIRR</span><b id="aXirr">—</b></div>
-      <div class="metric"><span class="small">策略总资产</span><b id="aAssets">—</b></div>
+      <div class="metric"><span class="small">正式接管后策略XIRR</span><b id="aXirr">—</b></div>
+      <div class="metric"><span class="small">模拟接管后策略XIRR</span><b id="aSimulatedXirr">—</b></div>
+      <div class="metric"><span class="small">真实校准总资产</span><b id="aAssets">—</b></div>
+      <div class="metric"><span class="small">自动模拟总资产</span><b id="aSimulatedAssets">—</b></div>
       <div class="metric"><span class="small">在场本金</span><b id="aPrincipal">—</b></div>
       <div class="metric"><span class="small">现金池</span><b id="aCash">—</b></div>
     </div>
@@ -174,6 +180,9 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 
 <section id="page-more" class="hidden">
   <div class="card">
+    <div class="row"><div><h2>基金资料与单位净值</h2><div class="small">配置策略基金，录入或修正正式T日单位净值</div></div><button id="btnFundNav" class="secondary">打开管理</button></div>
+  </div>
+  <div class="card">
     <div class="row"><div><h2>初始化基线</h2><div class="small">查看策略开始、历史期数和本金基线</div></div><button id="btnBaselineDetail" class="secondary">查看详情</button></div>
   </div>
   <div class="card">
@@ -183,6 +192,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
       <div><label>当前总份额</label><input id="cShares" type="number" step="0.000001"></div>
     </div>
     <div class="small" id="cImplied">隐含净值：—</div>
+    <label>校准原因</label><textarea id="cReason" rows="2" placeholder="例如：与基金账户持仓核对"></textarea>
     <button id="btnCalibrate">保存校准快照</button>
   </div>
 
@@ -254,6 +264,11 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
   <button id="revisionBack" class="secondary back-button">‹ 返回</button>
   <div class="card"><h2>修改历史</h2><div id="revisionHistoryList" class="list"></div></div>
 </section>
+
+<section id="page-fund-nav" class="hidden">
+  <button class="secondary back-button" onclick="App.showPage('more')">‹ 返回更多</button>
+  <div id="fundNavContent"></div>
+</section>
 </main>
 
 <nav>
@@ -271,9 +286,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 <script src="./market-provider.js"></script>
 <script src="./calibration-core.js"></script>
 <script src="./principal-revision-core.js"></script>
+<script src="./fund-share-core.js"></script>
 <script>
-const DB_NAME='CSI1000StrategyDB', DB_VERSION=3;
-const STORES=['app_meta','initialization_baseline','strategy_versions','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
+const DB_NAME='CSI1000StrategyDB', DB_VERSION=4;
+const STORES=['app_meta','initialization_baseline','strategy_versions','fund_profiles','fund_nav_daily','share_confirmation_events','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
 
 const $=id=>document.getElementById(id);
 const yuan=c=>new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY'}).format((c||0)/100);
@@ -281,7 +297,7 @@ const pctBp=bp=>((bp||0)/100).toFixed(2)+'%';
 const today=()=>window.MarketDataCore?MarketDataCore.beijingClock().date:new Date().toISOString().slice(0,10);
 const cents=v=>Math.round(Number(v||0)*100);
 const daysBetween=(a,b)=>Math.floor((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
-const addDays=(date,days)=>{const d=new Date(date+'T00:00:00');d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)};
+const addDays=(date,days)=>{const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)};
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const sharesText=micro=>Number.isFinite(micro)?new Intl.NumberFormat('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:6}).format(micro/1e6):'—';
 const navText=scaled=>Number.isFinite(scaled)?(scaled/1e6).toFixed(6):'—';
@@ -297,12 +313,25 @@ class DB{
         // V2仅重建可再下载的公开行情缓存；私人投资数据所在的其他store保持原样。
         if(e.oldVersion<2&&db.objectStoreNames.contains('market_daily')) db.deleteObjectStore('market_daily');
         for(const s of STORES) if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:s==='market_daily'?'date':'id'});
+        const upgradeTx=e.target.transaction,navStore=upgradeTx.objectStore('fund_nav_daily'),profileStore=upgradeTx.objectStore('fund_profiles'),shareEventStore=upgradeTx.objectStore('share_confirmation_events');
+        if(!navStore.indexNames.contains('fundCode_navDate'))navStore.createIndex('fundCode_navDate',['fundCode','navDate'],{unique:true});
+        if(!navStore.indexNames.contains('navDate'))navStore.createIndex('navDate','navDate');
+        if(!profileStore.indexNames.contains('effectiveFrom'))profileStore.createIndex('effectiveFrom','effectiveFrom');
+        if(!shareEventStore.indexNames.contains('entity'))shareEventStore.createIndex('entity',['entityType','entityId']);
         if(e.oldVersion<3){
           const migrate=(storeName,filter,mapper)=>{const store=e.target.transaction.objectStore(storeName),cursor=store.openCursor();cursor.onsuccess=event=>{const row=event.target.result;if(!row)return;const value=row.value;if(filter(value)){mapper(value);row.update(value)}row.continue()}};
           migrate('investment_cycles',()=>true,value=>{value.executionStatus=value.executionStatus||value.status||'PENDING';value.revisionStatus=value.revisionStatus||'ORIGINAL';value.plannedDate=value.plannedDate||value.scheduledDate});
           migrate('manual_trades',value=>value.type==='MANUAL_BUY',value=>{value.executionStatus=value.executionStatus||'EXECUTED';value.revisionStatus=value.revisionStatus||'ORIGINAL';value.actualAmountCent=value.actualAmountCent??value.amountCent??0});
           migrate('initialization_baseline',()=>true,value=>{value.revisionStatus=value.revisionStatus||'ORIGINAL'});
           migrate('app_meta',()=>true,value=>{value.schemaVersion=3});
+        }
+        if(e.oldVersion<4){
+          const migrateV4=(storeName,filter,mapper)=>{const store=upgradeTx.objectStore(storeName),cursor=store.openCursor();cursor.onsuccess=event=>{const row=event.target.result;if(!row)return;const value=row.value;if(filter(value)){mapper(value);row.update(value)}row.continue()}};
+          migrateV4('investment_cycles',()=>true,value=>Object.assign(value,FundShareCore.normalizeLegacyRecord(value)));
+          migrateV4('manual_trades',value=>value.type==='MANUAL_BUY',value=>Object.assign(value,FundShareCore.normalizeLegacyRecord(value)));
+          migrateV4('manual_trades',value=>value.type==='MANUAL_REDEEM',value=>{value.shareConfirmationStatus=value.shareConfirmationStatus||'NOT_APPLICABLE';value.redeemedSharesMicro=value.redeemedSharesMicro??null});
+          migrateV4('calibration_snapshots',()=>true,value=>{value.isShareAnchor=value.isShareAnchor??['INITIALIZATION','MANUAL_CALIBRATION'].includes(value.source);value.anchorSharesMicro=value.anchorSharesMicro??(value.isShareAnchor?value.totalSharesMicro:null);value.derivedSharesBeforeCalibrationMicro=value.derivedSharesBeforeCalibrationMicro??null;value.shareCorrectionMicro=value.shareCorrectionMicro??null;value.anchorEffectiveAt=value.anchorEffectiveAt||(value.isShareAnchor?(value.snapshotAt||value.createdAt||null):null)});
+          migrateV4('app_meta',()=>true,value=>{value.schemaVersion=4});
         }
      };
      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
@@ -338,6 +367,53 @@ window.MarketStorage={
   }
 };
 
+const FundNavProvider={
+  async fetch(){return {available:false,code:'NO_CONFIGURED_AUTO_SOURCE',message:'当前未配置经浏览器验证的自动基金净值数据源，请使用人工录入。'}}
+};
+
+const Fund={
+ async profiles(){return DB.all('fund_profiles')},
+ async navs(){return DB.all('fund_nav_daily')},
+ async profile(asOf=today()){return FundShareCore.getFundProfile(await this.profiles(),asOf)},
+ async nav(fundCode,navDate){return FundShareCore.getFundNav(await this.navs(),fundCode,navDate)},
+ async latestNav(fundCode,asOf=today()){return FundShareCore.latestFundNav(await this.navs(),fundCode,asOf)},
+ async shareFields(record,date=FundShareCore.recordDate(record),options={}){
+   const profile=await this.profile(date),nav=profile?await this.nav(profile.fundCode,date):null;
+   return FundShareCore.shareFields(record,profile,nav,options);
+ },
+ async derived(asOf=today()){return FundShareCore.calcDerivedShares(await DB.all('calibration_snapshots'),await DB.all('investment_cycles'),await DB.all('manual_trades'),asOf)},
+ event(record,entityType,fields,source='RECORD_CONFIRMATION'){
+   if(![FundShareCore.SHARE_STATUS.CONFIRMED,FundShareCore.SHARE_STATUS.MANUAL_CORRECTED].includes(fields.shareConfirmationStatus))return null;
+   const at=fields.shareConfirmedAt||new Date().toISOString();return {id:`share-${entityType}-${record.id}-${at.replace(/\D/g,'')}`,entityType,entityId:record.id,tradeDate:FundShareCore.recordDate(record),navDate:fields.navDate,fundCode:fields.fundCode,actualAmountCent:Number(record.actualAmountCent??record.amountCent)||0,unitNavScaled:fields.unitNavScaled,confirmedSharesMicro:fields.confirmedSharesMicro,confirmedAt:at,source};
+ },
+ async metrics(asOf=today()){
+   const profile=await this.profile(asOf),derived=await this.derived(asOf),latestNav=profile?await this.latestNav(profile.fundCode,asOf):null,simulation=FundShareCore.calcSimulation(derived,latestNav);
+   const records=[...(await DB.all('investment_cycles')),...(await DB.all('manual_trades')).filter(x=>x.type==='MANUAL_BUY')];
+   const pendingCount=records.filter(x=>!x.voided&&FundShareCore.executionStatus(x)==='EXECUTED'&&x.shareConfirmationStatus==='PENDING_NAV').length;
+   return {profile,derived,latestNav,simulation,pendingCount};
+ },
+ async prepareUpdatesForNav(nav,corrected=false,confirmedAt=new Date().toISOString()){
+   const profiles=await this.profiles(),cycles=await DB.all('investment_cycles'),trades=await DB.all('manual_trades'),cycleUpdates=[],tradeUpdates=[],events=[];
+   const collect=(record,entityType,target)=>{
+     const date=FundShareCore.recordDate(record),profile=FundShareCore.getFundProfile(profiles,date);
+     if(FundShareCore.executionStatus(record)!=='EXECUTED'||date!==nav.navDate||!profile||profile.fundCode!==nav.fundCode)return;
+     if(!corrected&&record.shareConfirmationStatus!=='PENDING_NAV')return;
+     const fields=FundShareCore.shareFields(record,profile,nav,{corrected,confirmedAt}),after={...record,...fields};target.push(after);
+     events.push({id:`share-${entityType}-${record.id}-${corrected?'corrected-'+confirmedAt.replace(/\D/g,''):'confirmed'}`,entityType,entityId:record.id,tradeDate:date,navDate:nav.navDate,fundCode:nav.fundCode,actualAmountCent:Number(record.actualAmountCent??record.amountCent)||0,unitNavScaled:nav.unitNavScaled,confirmedSharesMicro:fields.confirmedSharesMicro,confirmedAt,source:corrected?'NAV_MANUAL_CORRECTION':nav.source});
+   };
+   for(const record of cycles)collect(record,'investment_cycle',cycleUpdates);
+   for(const record of trades.filter(x=>x.type==='MANUAL_BUY'))collect(record,'manual_trade',tradeUpdates);
+   return {cycleUpdates,tradeUpdates,events};
+ },
+ async confirmPendingForNav(nav){
+   const updates=await this.prepareUpdatesForNav(nav,false);
+   if(!updates.cycleUpdates.length&&!updates.tradeUpdates.length)return 0;
+   await DB.atomic(['investment_cycles','manual_trades','share_confirmation_events'],tx=>{for(const x of updates.cycleUpdates)tx.objectStore('investment_cycles').put(x);for(const x of updates.tradeUpdates)tx.objectStore('manual_trades').put(x);for(const x of updates.events)tx.objectStore('share_confirmation_events').put(x)});
+   return updates.events.length;
+ },
+ async confirmAllPending(){let count=0;for(const nav of await this.navs())if(!nav.voided)count+=await this.confirmPendingForNav(nav);return count}
+};
+
 const Calc={
  annualHardLimit(strategy,asOf=today()){
    return StrategyCore.annualHardLimit(strategy,asOf);
@@ -354,21 +430,22 @@ const Calc={
    return (await this.principalBreakdown()).currentPrincipalCent;
  },
  async latestCalibration(){
-   return CalibrationCore.latestValidCalibration(await DB.all('calibration_snapshots'));
+   return FundShareCore.latestRealCalibration(await DB.all('calibration_snapshots'));
  },
  xirr(cashflows, terminalCent, terminalDate){
    return StrategyCore.xirr(cashflows,terminalCent,terminalDate);
  },
  async metrics(){
    const strategy=(await DB.all('strategy_versions')).filter(x=>x.effectiveFrom<=today()&&(!x.effectiveTo||x.effectiveTo>=today())).sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
-   const breakdown=await this.principalBreakdown(),principal=breakdown.currentPrincipalCent,cash=breakdown.cashPoolCent,cal=await this.latestCalibration();
+   const breakdown=await this.principalBreakdown(),principal=breakdown.currentPrincipalCent,cash=breakdown.cashPoolCent,cal=await this.latestCalibration(),fundMetrics=await Fund.metrics();
    const hard=strategy?this.annualHardLimit(strategy):0, remaining=Math.max(0,hard-principal);
    const positionBp=strategy?StrategyCore.principalPositionBp(principal,strategy.totalInvestmentBaseCent):0;
    const fund=cal?cal.fundMarketValueCent:0,total=fund+cash;
    const xflows=(await DB.all('external_cashflows')).filter(x=>!x.voided).sort((a,b)=>a.date.localeCompare(b.date));
    const xirr=cal?this.xirr(xflows,total,cal.snapshotDate):null;
+   const simulatedFund=fundMetrics.simulation.marketValueCent,simulatedTotal=simulatedFund==null?null:simulatedFund+cash,simulatedXirr=simulatedTotal==null?null:this.xirr(xflows,simulatedTotal,fundMetrics.latestNav?.navDate||today());
    const calDays=cal?daysBetween(cal.snapshotDate,today()):9999;
-   return {strategy,principal,cash,cal,hard,remaining,positionBp,fund,total,xirr,calDays,breakdown};
+   return {strategy,principal,cash,cal,hard,remaining,positionBp,fund,total,xirr,calDays,breakdown,fundMetrics,simulatedFund,simulatedTotal,simulatedXirr};
  }
 };
 
@@ -459,6 +536,7 @@ const App={
  async initialized(){return !!(await DB.get('app_meta','app'))?.initialized},
  async init(){
    await DB.open();
+   await Fund.confirmAllPending();
    $('sEffective').value=today();
    document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>this.showPage(b.dataset.page));
    $('btnInitialize').onclick=()=>this.initialize();
@@ -479,6 +557,7 @@ const App={
     $('principalCard').onclick=()=>this.showPage('principal-basis');
     $('principalCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.showPage('principal-basis')}};
     $('btnBaselineDetail').onclick=()=>this.showPage('baseline-detail');
+    $('btnFundNav').onclick=()=>this.showPage('fund-nav');
    if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
    if(navigator.storage?.persist) navigator.storage.persist().catch(()=>{});
    await this.refreshAll();
@@ -494,19 +573,20 @@ const App={
     if(name==='principal-history')this.renderPrincipalHistory();
     if(name==='principal-basis')this.renderPrincipalBasis();
     if(name==='baseline-detail')this.renderBaselineDetail();
+    if(name==='fund-nav')this.renderFundNav();
  },
  async initialize(){
-   const mv=cents($('initMarketValue').value), shares=Number($('initShares').value);
-   if(!mv||!shares){alert('当前市值和当前总份额均为必填');return}
+   const mv=cents($('initMarketValue').value);let sharesMicro;try{sharesMicro=FundShareCore.parseScaledDecimal($('initShares').value)}catch(_){sharesMicro=0}
+   if(!mv||!sharesMicro){alert('当前市值和当前总份额均为必填');return}
    const principal=cents($('initPrincipal').value), start=$('initStartDate').value, cycles=Number($('initCycles').value||0), takeover=today();
    if(principal<=0||cycles<0||!start){alert('请检查开始日期、历史期数和历史本金');return}
-   const now=new Date().toISOString(),snapshotId='cal-'+Date.now();
+   const now=new Date().toISOString(),snapshotId='cal-'+Date.now(),snapshot=FundShareCore.applyCalibrationAnchor({id:snapshotId,snapshotDate:takeover,snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:sharesMicro,impliedNavScaled:FundShareCore.calcImpliedNavScaled(mv,sharesMicro),inMarketPrincipalCent:principal,cashPoolBalanceCent:0,strategyTotalAssetsCent:mv,source:'INITIALIZATION',reason:'首次接管初始化',createdAt:now},null);
    await DB.atomic(['app_meta','initialization_baseline','strategy_versions','external_cashflows','calibration_snapshots'],tx=>{
-     tx.objectStore('app_meta').put({id:'app',initialized:true,installedAt:now,takeoverDate:takeover,schemaVersion:3});
+     tx.objectStore('app_meta').put({id:'app',initialized:true,installedAt:now,takeoverDate:takeover,schemaVersion:4});
      tx.objectStore('initialization_baseline').put({id:'baseline',strategyStartDate:start,historicalExecutedCycles:cycles,historicalInvestedPrincipalCent:principal,takeoverDate:takeover,takeoverInMarketPrincipalCent:principal,revisionStatus:'ORIGINAL',createdAt:now,locked:true});
      tx.objectStore('strategy_versions').put({id:'strategy-v1.0',version:'1.0',effectiveFrom:takeover,isCurrent:true,totalInvestmentBaseCent:15000000,targetPositionMinBp:1500,targetPositionMaxBp:1600,warningPositionBp:1800,slowdownPositionBp:1900,baseHardLimitBp:2000,baseHardLimitCent:3000000,annualHardLimitIncrementCent:600000,baseRecurringAmountCent:10000,targetXirrBp:600,minHoldingYears:3,maxHoldingYears:5,createdAt:now,changeReason:'V1.0 Frozen 初始策略'});
      tx.objectStore('external_cashflows').put({id:'opening',date:takeover,type:'TAKEOVER_OPENING',amountCent:-principal,sourceRecordId:'baseline'});
-     tx.objectStore('calibration_snapshots').put({id:snapshotId,snapshotDate:takeover,snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(shares*1e6),impliedNavScaled:Math.round(mv/100/shares*1e6),inMarketPrincipalCent:principal,cashPoolBalanceCent:0,strategyTotalAssetsCent:mv,source:'INITIALIZATION',createdAt:now});
+     tx.objectStore('calibration_snapshots').put(snapshot);
    });
    await this.refreshAll();
  },
@@ -517,9 +597,12 @@ const App={
    const m=await Calc.metrics(), r=await Engine.recommend(m);
    $('mPrincipal').textContent=yuan(m.principal);$('mPosition').textContent='本金仓位 '+pctBp(m.positionBp);
    $('mCashPool').textContent=yuan(m.cash);$('mMarketValue').textContent=m.cal?yuan(m.fund):'—';$('mTotalAssets').textContent=m.cal?yuan(m.total):'—';
+   $('mSimulatedValue').textContent=m.simulatedFund==null?'—':yuan(m.simulatedFund);$('mSimulatedStatus').textContent=m.fundMetrics.simulation.status==='AVAILABLE'?'自动模拟 · 非真实账户余额':FundShareCore.SIMULATION_LABELS[m.fundMetrics.simulation.status];
+   $('mDerivedShares').textContent=sharesText(m.fundMetrics.derived.derivedSharesMicro);$('mPendingShares').textContent=`待净值确认 ${m.fundMetrics.pendingCount} 笔`;
    $('mHardLimit').textContent=yuan(m.hard);$('mRemaining').textContent=yuan(m.remaining);
     $('mCycles').textContent=m.breakdown.effectiveCycleCount+'期';
    $('mXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';
+   $('mSimulatedXirr').textContent=m.simulatedXirr==null?'暂不可计算':(m.simulatedXirr*100).toFixed(2)+'%';
    $('mCalFresh').textContent=!m.cal?'待人工校准':m.calDays<=7?'校准数据新鲜':m.calDays<=14?`已${m.calDays}天未校准`:'数据已过期';
    $('positionBar').style.width=Math.min(100,m.positionBp/20)+'%';
    $('positionBadge').textContent=m.positionBp>=1900?'二级警戒':m.positionBp>=1800?'一级警戒':m.positionBp>=1500?'目标附近':'低于目标';
@@ -531,7 +614,7 @@ const App={
    $('recommendRealtime').textContent=realtime.available?`今日实时指数：${realtime.quote.current.toFixed(2)}（${realtime.quote.changePercent>=0?'+':''}${realtime.quote.changePercent.toFixed(2)}%），仅供观察`:'今日实时指数：刷新后显示（不参与策略计算）';
    $('fundingText').textContent=r.amount?`现金池 ${yuan(r.cashUse||0)} / 外部 ${yuan(r.ext||0)}`:'—';
    $('recommendBadge').textContent=r.action;
-   $('xirrBadge').textContent='接管后';
+   $('xirrBadge').textContent='正式 / 模拟';
    await this.renderTodos(m);
    const market=r.market||await Market.status();
     $('marketConnection').textContent=market.available?`中证1000行情截至 ${market.asOfDate} · ${market.sourceLabel||market.source} · ${market.latestStatusText||market.freshness}`:market.reason;
@@ -539,6 +622,8 @@ const App={
  },
  async renderTodos(m){
    const list=[];
+   if(!m.fundMetrics.profile)list.push({t:'尚未配置策略基金，份额确认将等待',c:'orange',act:'配置基金',fn:()=>this.showPage('fund-nav')});
+   else if(m.fundMetrics.pendingCount)list.push({t:`${m.fundMetrics.pendingCount} 笔已执行投入等待T日基金净值`,c:'orange',act:'管理净值',fn:()=>this.showPage('fund-nav')});
     const catchup=await this.catchupDates();
     if(catchup.length) list.push({t:`待补录 ${catchup.length} 期`,c:'orange',act:'去补录',fn:()=>this.openCatchup(catchup)});
     const pending=(await DB.all('investment_cycles')).filter(x=>!x.voided&&PrincipalRevisionCore.statusOf(x)==='PENDING');
@@ -555,19 +640,19 @@ const App={
  async catchupDates(){
    const meta=await DB.get('app_meta','app'); if(!meta)return[];
     const cycles=await DB.all('investment_cycles'),done=new Set(cycles.flatMap(x=>[x.scheduledDate,x.plannedDate].filter(Boolean)));
-   const out=[],missingYears=new Set(); let d=new Date(meta.takeoverDate+'T00:00:00'), now=new Date(today()+'T00:00:00');
-   d.setDate(d.getDate()+1);
+   const out=[],missingYears=new Set(); let d=new Date(meta.takeoverDate+'T00:00:00Z'), now=new Date(today()+'T00:00:00Z');
+   d.setUTCDate(d.getUTCDate()+1);
    while(d<=now){
      const iso=d.toISOString().slice(0,10);
      let isTrading=false;
      if(window.TradingCalendarProvider){
        isTrading=await window.TradingCalendarProvider.isTradingDay(iso);
-       if(isTrading===null){missingYears.add(d.getFullYear());isTrading=false}
+       if(isTrading===null){missingYears.add(d.getUTCFullYear());isTrading=false}
      }else{
-       missingYears.add(d.getFullYear());
+       missingYears.add(d.getUTCFullYear());
      }
      if(isTrading&&!done.has(iso)) out.push(iso);
-     d.setDate(d.getDate()+1)
+     d.setUTCDate(d.getUTCDate()+1)
    }
    this.calendarUnavailableYears=[...missingYears];
    return out;
@@ -582,7 +667,7 @@ const App={
   async ensurePendingCycle(date,s){
     const id='cycle-'+date,existing=await DB.get('investment_cycles',id);if(existing)return existing;
     const m=await Calc.metrics(),now=new Date().toISOString(),status=m.remaining<=0?'BLOCKED_HARD_LIMIT':'PENDING';
-    const record={id,scheduledDate:date,plannedDate:date,strategyVersionId:s.id,plannedAmountCent:s.baseRecurringAmountCent,actualAmountCent:0,scheduledBaseAmountCent:s.baseRecurringAmountCent,manualExtraAmountCent:0,cashPoolFundingCent:0,externalFundingCent:0,executionStatus:status,status,revisionStatus:'ORIGINAL',source:'AUTO_CATCHUP',countsAsCycle:false,processed:true,createdAt:now};
+    const record={id,scheduledDate:date,plannedDate:date,strategyVersionId:s.id,plannedAmountCent:s.baseRecurringAmountCent,actualAmountCent:0,scheduledBaseAmountCent:s.baseRecurringAmountCent,manualExtraAmountCent:0,cashPoolFundingCent:0,externalFundingCent:0,executionStatus:status,status,revisionStatus:'ORIGINAL',shareConfirmationStatus:'NOT_APPLICABLE',fundProfileId:null,fundCode:null,navDate:null,unitNavScaled:null,confirmedSharesMicro:null,shareConfirmedAt:null,shareSource:null,source:'AUTO_CATCHUP',countsAsCycle:false,processed:true,createdAt:now};
     await DB.put('investment_cycles',record);return record;
   },
   async saveCycle(date,amount,s,status='EXECUTED'){
@@ -591,11 +676,13 @@ const App={
     const actual=status==='EXECUTED'?amount:0;if(status==='EXECUTED'&&(actual<=0||actual>m.remaining))throw new Error('HARD_LIMIT_EXCEEDED');
     const cashUse=status==='EXECUTED'?Math.min(actual,m.cash):0,ext=actual-cashUse;
     PrincipalRevisionCore.validateFunding({executionStatus:status,actualAmountCent:actual,cashPoolFundingCent:cashUse,externalFundingCent:ext});
-    const next={...record,actualAmountCent:actual,manualExtraAmountCent:Math.max(0,actual-record.plannedAmountCent),cashPoolFundingCent:cashUse,externalFundingCent:ext,executionStatus:status,status,countsAsCycle:status==='EXECUTED',processed:true,confirmedAt:now};
-    await DB.atomic(['investment_cycles','cash_pool_ledger','external_cashflows'],tx=>{
+    let next={...record,actualAmountCent:actual,manualExtraAmountCent:Math.max(0,actual-record.plannedAmountCent),cashPoolFundingCent:cashUse,externalFundingCent:ext,executionStatus:status,status,countsAsCycle:status==='EXECUTED',processed:true,confirmedAt:now};
+    const share=await Fund.shareFields(next,date,{confirmedAt:now});next={...next,...share};const shareEvent=Fund.event(next,'investment_cycle',share);
+    await DB.atomic(['investment_cycles','cash_pool_ledger','external_cashflows','share_confirmation_events'],tx=>{
       tx.objectStore('investment_cycles').put(next);
      if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:date,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});
      if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now});
+     if(shareEvent)tx.objectStore('share_confirmation_events').put(shareEvent);
     });
     return next;
   },
@@ -608,12 +695,14 @@ const App={
     const cycles=(await DB.all('investment_cycles')).sort((a,b)=>b.scheduledDate.localeCompare(a.scheduledDate));
     const trades=(await DB.all('manual_trades')).sort((a,b)=>b.tradeDate.localeCompare(a.tradeDate));
     const box=$('recordsList');box.innerHTML='';
-    for(const x of cycles){const status=PrincipalRevisionCore.statusOf(x),revision=PrincipalRevisionCore.revisionStatusOf(x),d=document.createElement('div'),actual=status==='PENDING'?'—':yuan(x.actualAmountCent);d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(x.scheduledDate)} · 定投</b><span class="status-line"><span class="badge ${this.executionClass(status)}">${this.executionLabel(status)}</span><span class="badge ${revision==='MODIFIED'?'modified':''} revision-link">${this.revisionLabel(revision)}</span></span></div><div>计划 ${yuan(x.plannedAmountCent)} · 实际 ${actual}</div><div class="meta">现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)} · 手动追加 ${yuan(x.manualExtraAmountCent||0)}</div>${x.auditFlags?.length?'<div class="audit-warning">历史事实与当时策略上限冲突</div>':''}<div class="action-row"><button class="secondary edit-record">修正记录</button></div>`;d.querySelector('.edit-record').onclick=()=>this.openRecordEdit(x,'investment_cycle');d.querySelector('.revision-link').onclick=()=>revision==='MODIFIED'&&this.renderRevisionHistory('investment_cycle',x.id,'records');box.appendChild(d)}
-    for(const x of trades){const d=document.createElement('div');d.className='item';if(x.type==='MANUAL_BUY'){const status=PrincipalRevisionCore.statusOf(x),revision=PrincipalRevisionCore.revisionStatusOf(x),actual=status==='PENDING'?'—':yuan(PrincipalRevisionCore.actualOf(x));d.innerHTML=`<div class="row"><b>${escapeHtml(x.tradeDate)} · 手动买入</b><span class="status-line"><span class="badge ${this.executionClass(status)}">${this.executionLabel(status)}</span><span class="badge ${revision==='MODIFIED'?'modified':''} revision-link">${this.revisionLabel(revision)}</span></span></div><div>计划 ${yuan(0)} · 实际 ${actual}</div><div class="meta">现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)}</div>${x.auditFlags?.length?'<div class="audit-warning">历史事实与当时策略上限冲突</div>':''}<div class="action-row"><button class="secondary edit-record">修正记录</button></div>`;d.querySelector('.edit-record').onclick=()=>this.openRecordEdit(x,'manual_trade');d.querySelector('.revision-link').onclick=()=>revision==='MODIFIED'&&this.renderRevisionHistory('manual_trade',x.id,'records')}else d.innerHTML=`<b>${escapeHtml(x.tradeDate)} · 止盈赎回</b><div>${yuan(x.amountCent)}</div><div class="meta">退出对应本金 ${yuan(x.exitedPrincipalCent||0)}</div>`;box.appendChild(d)}
+    for(const x of cycles){const status=PrincipalRevisionCore.statusOf(x),revision=PrincipalRevisionCore.revisionStatusOf(x),shareStatus=x.shareConfirmationStatus||FundShareCore.statusForExecution(status,false),d=document.createElement('div'),actual=status==='PENDING'?'—':yuan(x.actualAmountCent);d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(x.scheduledDate)} · 定投</b><span class="status-line"><span class="badge ${this.executionClass(status)}">${this.executionLabel(status)}</span><span class="badge ${revision==='MODIFIED'?'modified':''} revision-link">${this.revisionLabel(revision)}</span><span class="badge ${this.shareClass(shareStatus)}">${this.shareLabel(shareStatus)}</span></span></div><div>计划 ${yuan(x.plannedAmountCent)} · 实际 ${actual}</div><div class="meta">现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)} · 手动追加 ${yuan(x.manualExtraAmountCent||0)}</div><div class="meta">T日净值 ${navText(x.unitNavScaled)} · 确认份额 ${sharesText(x.confirmedSharesMicro)}</div>${x.auditFlags?.length?'<div class="audit-warning">历史事实与当时策略上限冲突</div>':''}<div class="action-row"><button class="secondary edit-record">修正记录</button></div>`;d.querySelector('.edit-record').onclick=()=>this.openRecordEdit(x,'investment_cycle');d.querySelector('.revision-link').onclick=()=>revision==='MODIFIED'&&this.renderRevisionHistory('investment_cycle',x.id,'records');box.appendChild(d)}
+    for(const x of trades){const d=document.createElement('div');d.className='item';if(x.type==='MANUAL_BUY'){const status=PrincipalRevisionCore.statusOf(x),revision=PrincipalRevisionCore.revisionStatusOf(x),shareStatus=x.shareConfirmationStatus||FundShareCore.statusForExecution(status,false),actual=status==='PENDING'?'—':yuan(PrincipalRevisionCore.actualOf(x));d.innerHTML=`<div class="row"><b>${escapeHtml(x.tradeDate)} · 手动买入</b><span class="status-line"><span class="badge ${this.executionClass(status)}">${this.executionLabel(status)}</span><span class="badge ${revision==='MODIFIED'?'modified':''} revision-link">${this.revisionLabel(revision)}</span><span class="badge ${this.shareClass(shareStatus)}">${this.shareLabel(shareStatus)}</span></span></div><div>计划 ${yuan(0)} · 实际 ${actual}</div><div class="meta">现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)}</div><div class="meta">T日净值 ${navText(x.unitNavScaled)} · 确认份额 ${sharesText(x.confirmedSharesMicro)}</div>${x.auditFlags?.length?'<div class="audit-warning">历史事实与当时策略上限冲突</div>':''}<div class="action-row"><button class="secondary edit-record">修正记录</button></div>`;d.querySelector('.edit-record').onclick=()=>this.openRecordEdit(x,'manual_trade');d.querySelector('.revision-link').onclick=()=>revision==='MODIFIED'&&this.renderRevisionHistory('manual_trade',x.id,'records')}else d.innerHTML=`<b>${escapeHtml(x.tradeDate)} · 止盈赎回</b><div>${yuan(x.amountCent)}</div><div class="meta">退出对应本金 ${yuan(x.exitedPrincipalCent||0)} · 赎回份额 ${sharesText(x.redeemedSharesMicro)}</div>`;box.appendChild(d)}
     if(!cycles.length&&!trades.length)box.innerHTML='<div class="small">接管后暂无交易记录</div>';
   },
   executionLabel(status){return PrincipalRevisionCore.EXECUTION_LABELS[status]||status||'未知'},
   revisionLabel(status){return PrincipalRevisionCore.REVISION_LABELS[status]||status||'原始'},
+  shareLabel(status){return FundShareCore.SHARE_LABELS[status]||status||'不适用'},
+  shareClass(status){return ({PENDING_NAV:'share-pending',CONFIRMED:'share-confirmed',MANUAL_CORRECTED:'share-corrected',NOT_APPLICABLE:'share-na'})[status]||'share-na'},
   executionClass(status){return ({PENDING:'pending',EXECUTED:'executed',NOT_EXECUTED:'not-executed',BLOCKED_HARD_LIMIT:'blocked'})[status]||''},
   businessError(error){return ({FUNDING_SUM_MISMATCH:'实际投入必须等于现金池出资与外部资金之和',NON_EXECUTED_MUST_BE_ZERO:'非已执行记录的实际金额和资金来源必须为0',EXECUTED_AMOUNT_REQUIRED:'已执行记录必须填写实际投入金额',CASH_POOL_WOULD_BE_NEGATIVE:'修正后现金池将为负数，不能保存',PRINCIPAL_WOULD_BE_NEGATIVE:'修正后在场本金将为负数，不能保存',HARD_LIMIT_EXCEEDED:'该执行会突破当年度硬上限，不能保存',CHANGE_REASON_REQUIRED:'请填写修改原因',INVALID_RECORD_DATE:'请填写有效日期'})[error.message]||`保存失败：${error.message}`},
   async openRecordEdit(record,entityType){
@@ -630,14 +719,17 @@ const App={
     if(entityType==='investment_cycle')changes.scheduledDate=date;else{changes.tradeDate=date;changes.amountCent=actual}
     try{
       const applicableStrategy=await this.strategyForDate(date)||m.strategy,hard=applicableStrategy?Calc.annualHardLimit(applicableStrategy,date):m.hard,{after,auditConflict}=PrincipalRevisionCore.prepareRecordRevision(before,changes,{currentPrincipalCent:m.principal,currentCashPoolCent:m.cash,hardLimitCent:hard,today:today()}),now=new Date().toISOString();
+      const share=await Fund.shareFields(after,date,{confirmedAt:now});Object.assign(after,share);
       after.originalValues=before.originalValues||{scheduledDate:before.scheduledDate??null,tradeDate:before.tradeDate??null,actualAmountCent:before.actualAmountCent??null,amountCent:before.amountCent??null,cashPoolFundingCent:before.cashPoolFundingCent??0,externalFundingCent:before.externalFundingCent??0,executionStatus:PrincipalRevisionCore.statusOf(before),notes:before.notes??''};after.modifiedAt=now;
       const revisions=PrincipalRevisionCore.revisionEntries(entityType,before.id,before,after,reason,now,'USER_EDIT');if(!revisions.length){alert('没有检测到变化');return}
       const recordStore=entityType==='investment_cycle'?'investment_cycles':'manual_trades',recordDate=PrincipalRevisionCore.recordDate(after),cashId='cash-'+before.id,extId='ext-'+before.id;
-      await DB.atomic([recordStore,'cash_pool_ledger','external_cashflows','record_revisions'],tx=>{
+      const shareEvent=Fund.event(after,entityType,share,'RECORD_REVISION');
+      await DB.atomic([recordStore,'cash_pool_ledger','external_cashflows','record_revisions','share_confirmation_events'],tx=>{
         tx.objectStore(recordStore).put(after);
         tx.objectStore('cash_pool_ledger').put({id:cashId,eventDate:recordDate,type:'REINVEST_OUT',amountCent:-after.cashPoolFundingCent,relatedRecordId:before.id,affectsStrategyXirr:false,voided:after.cashPoolFundingCent===0,updatedAt:now,createdAt:before.createdAt||now});
         tx.objectStore('external_cashflows').put({id:extId,date:recordDate,type:'EXTERNAL_CONTRIBUTION',amountCent:-after.externalFundingCent,sourceRecordId:before.id,voided:after.externalFundingCent===0,updatedAt:now,createdAt:before.createdAt||now});
         for(const revision of revisions)tx.objectStore('record_revisions').put(revision);
+        if(shareEvent)tx.objectStore('share_confirmation_events').put(shareEvent);
       });
       this.closeModal();await this.renderRecords();await this.refreshAll();if(auditConflict)alert('修正已保存，并标记“历史事实与当时策略上限冲突”。');
     }catch(error){alert(this.businessError(error))}
@@ -647,18 +739,18 @@ const App={
     for(const revision of rows){const d=document.createElement('div');d.className='item';const before=this.revisionValue(revision.fieldName,revision.before),after=this.revisionValue(revision.fieldName,revision.after);d.innerHTML=`<div class="row"><b>${escapeHtml(revision.fieldLabel||revision.fieldName||revision.changeType)}</b><span class="small">${escapeHtml(this.formatMarketTime(revision.changedAt))}</span></div><div>${escapeHtml(before)} → ${escapeHtml(after)}</div><div class="meta">原因：${escapeHtml(revision.changeReason||revision.reason||'未记录')} · 来源：${escapeHtml(revision.source||'历史记录')}</div>`;box.appendChild(d)}
     if(!rows.length)box.innerHTML='<div class="notice">暂无修改历史</div>';$('revisionBack').onclick=()=>this.showPage(returnPage);this.showPage('revision-history');
   },
-  revisionValue(field,value){if(['actualAmountCent','amountCent','cashPoolFundingCent','externalFundingCent','historicalInvestedPrincipalCent','takeoverInMarketPrincipalCent'].includes(field))return yuan(Number(value)||0);if(field==='executionStatus')return this.executionLabel(value);if(value&&typeof value==='object')return JSON.stringify(value);return String(value??'—')},
+  revisionValue(field,value){if(['actualAmountCent','amountCent','cashPoolFundingCent','externalFundingCent','historicalInvestedPrincipalCent','takeoverInMarketPrincipalCent'].includes(field))return yuan(Number(value)||0);if(field==='unitNavScaled')return navText(Number(value));if(field==='executionStatus')return this.executionLabel(value);if(value&&typeof value==='object')return JSON.stringify(value);return String(value??'—')},
   openManualBuy(){
     $('modalSheet').innerHTML=`<h2>新增手动买入</h2><label>日期</label><input id="mbDate" type="date" value="${today()}"><label>金额（元）</label><input id="mbAmount" type="number"><button id="mbSave">保存</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
-    $('mbSave').onclick=async()=>{const amount=cents($('mbAmount').value),m=await Calc.metrics();if(amount<=0)return;if(amount>m.remaining){alert('该买入将突破当年度硬上限，不能保存');return}const actual=amount,cashUse=Math.min(actual,m.cash),ext=actual-cashUse,id='manual-'+Date.now(),dt=$('mbDate').value,now=new Date().toISOString();await DB.atomic(['manual_trades','cash_pool_ledger','external_cashflows'],tx=>{tx.objectStore('manual_trades').put({id,tradeDate:dt,type:'MANUAL_BUY',plannedAmountCent:0,amountCent:actual,actualAmountCent:actual,cashPoolFundingCent:cashUse,externalFundingCent:ext,executionStatus:'EXECUTED',status:'EXECUTED',revisionStatus:'ORIGINAL',affectsCycleCount:false,createdAt:now});if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date:dt,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now})});this.closeModal();await this.renderRecords();await this.refreshAll()};
+    $('mbSave').onclick=async()=>{const amount=cents($('mbAmount').value),m=await Calc.metrics();if(amount<=0)return;if(amount>m.remaining){alert('该买入将突破当年度硬上限，不能保存');return}const actual=amount,cashUse=Math.min(actual,m.cash),ext=actual-cashUse,id='manual-'+Date.now(),dt=$('mbDate').value,now=new Date().toISOString();let record={id,tradeDate:dt,type:'MANUAL_BUY',plannedAmountCent:0,amountCent:actual,actualAmountCent:actual,cashPoolFundingCent:cashUse,externalFundingCent:ext,executionStatus:'EXECUTED',status:'EXECUTED',revisionStatus:'ORIGINAL',affectsCycleCount:false,createdAt:now};const share=await Fund.shareFields(record,dt,{confirmedAt:now});record={...record,...share};const shareEvent=Fund.event(record,'manual_trade',share);await DB.atomic(['manual_trades','cash_pool_ledger','external_cashflows','share_confirmation_events'],tx=>{tx.objectStore('manual_trades').put(record);if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date:dt,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now});if(shareEvent)tx.objectStore('share_confirmation_events').put(shareEvent)});this.closeModal();await this.renderRecords();await this.refreshAll()};
    $('modal').classList.remove('hidden');
  },
  previewNav(){const mv=Number($('cMarketValue').value),sh=Number($('cShares').value);$('cImplied').textContent=mv&&sh?'隐含净值：'+(mv/sh).toFixed(6):'隐含净值：—'},
  async calibrate(){
-   const mv=cents($('cMarketValue').value),sh=Number($('cShares').value);if(!mv||!sh){alert('市值和总份额均必填');return}
-   const m=await Calc.metrics(),now=new Date().toISOString();
-   await DB.put('calibration_snapshots',{id:'cal-'+Date.now(),snapshotDate:today(),snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(sh*1e6),impliedNavScaled:Math.round(mv/100/sh*1e6),inMarketPrincipalCent:m.principal,cashPoolBalanceCent:m.cash,strategyTotalAssetsCent:mv+m.cash,source:'MANUAL_CALIBRATION',createdAt:now});
-   $('cMarketValue').value='';$('cShares').value='';this.previewNav();await this.refreshAll();alert('校准已保存');
+   const mv=cents($('cMarketValue').value),reason=$('cReason').value.trim();let sharesMicro;try{sharesMicro=FundShareCore.parseScaledDecimal($('cShares').value)}catch(_){sharesMicro=0}if(!mv||!sharesMicro||!reason){alert('市值、总份额和校准原因均必填');return}
+   const m=await Calc.metrics(),now=new Date().toISOString(),derived=m.fundMetrics.derived.derivedSharesMicro,snapshot=FundShareCore.applyCalibrationAnchor({id:'cal-'+Date.now(),snapshotDate:today(),snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:sharesMicro,impliedNavScaled:FundShareCore.calcImpliedNavScaled(mv,sharesMicro),inMarketPrincipalCent:m.principal,cashPoolBalanceCent:m.cash,strategyTotalAssetsCent:mv+m.cash,source:'MANUAL_CALIBRATION',reason,createdAt:now},derived);
+   await DB.put('calibration_snapshots',snapshot);
+   $('cMarketValue').value='';$('cShares').value='';$('cReason').value='';this.previewNav();await this.refreshAll();alert(`校准已保存；份额纠偏 ${sharesText(snapshot.shareCorrectionMicro)}`);
  },
  async cashAction(){
    const amount=cents($('cashAmount').value);if(amount<=0)return;const type=$('cashType').value,dt=today(),id='cash-'+Date.now();
@@ -673,11 +765,12 @@ const App={
    const amount=cents($('redeemAmount').value),m=await Calc.metrics();
    if(amount<=0)return;if(!m.cal||m.fund<=0){alert('请先完成人工校准');return}if(amount>m.fund){alert('赎回金额不能超过当前基金市值');return}
    let allocation;try{allocation=StrategyCore.takeProfitCostAllocation(m.fund,m.principal,amount)}catch(e){alert('赎回参数无效');return}
-   const id='redeem-'+Date.now(),dt=today(),now=new Date().toISOString(),remainingFund=m.fund-amount,remainingShares=Math.round(m.cal.totalSharesMicro*remainingFund/m.fund),cashAfter=m.cash+amount;
-   await DB.atomic(['manual_trades','cash_pool_ledger','calibration_snapshots'],tx=>{
-     tx.objectStore('manual_trades').put({id,tradeDate:dt,type:'MANUAL_REDEEM',amountCent:amount,fundMarketValueBeforeCent:m.fund,inMarketPrincipalBeforeCent:m.principal,redeemAmountCent:amount,exitedPrincipalCent:allocation.exitedPrincipalCent,realizedGainCent:allocation.realizedGainCent,destination:'CASH_POOL',createdAt:now});
+   const id='redeem-'+Date.now(),dt=today(),now=new Date().toISOString(),remainingFund=m.fund-amount,currentShares=m.fundMetrics.derived.derivedSharesMicro??m.cal.totalSharesMicro,redeemedShares=FundShareCore.calcProportionalShares(currentShares,amount,m.fund),remainingShares=currentShares-redeemedShares,cashAfter=m.cash+amount;
+   await DB.atomic(['manual_trades','cash_pool_ledger','calibration_snapshots','share_confirmation_events'],tx=>{
+     tx.objectStore('manual_trades').put({id,tradeDate:dt,type:'MANUAL_REDEEM',amountCent:amount,fundMarketValueBeforeCent:m.fund,inMarketPrincipalBeforeCent:m.principal,redeemAmountCent:amount,exitedPrincipalCent:allocation.exitedPrincipalCent,realizedGainCent:allocation.realizedGainCent,destination:'CASH_POOL',executionStatus:'EXECUTED',shareConfirmationStatus:'CONFIRMED',redeemedSharesMicro:redeemedShares,shareConfirmedAt:now,shareSource:'REDEMPTION_PROPORTION',createdAt:now});
      tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'TAKE_PROFIT_IN',amountCent:amount,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});
-     tx.objectStore('calibration_snapshots').put({id:'cal-'+Date.now(),snapshotDate:dt,snapshotAt:now,fundMarketValueCent:remainingFund,totalSharesMicro:remainingShares,impliedNavScaled:remainingShares?Math.round(remainingFund/100/(remainingShares/1e6)*1e6):0,inMarketPrincipalCent:allocation.remainingPrincipalCent,cashPoolBalanceCent:cashAfter,strategyTotalAssetsCent:remainingFund+cashAfter,source:'TAKE_PROFIT',createdAt:now});
+     tx.objectStore('calibration_snapshots').put({id:'cal-'+Date.now(),snapshotDate:dt,snapshotAt:now,fundMarketValueCent:remainingFund,totalSharesMicro:remainingShares,impliedNavScaled:remainingShares?FundShareCore.calcImpliedNavScaled(remainingFund,remainingShares):0,inMarketPrincipalCent:allocation.remainingPrincipalCent,cashPoolBalanceCent:cashAfter,strategyTotalAssetsCent:remainingFund+cashAfter,source:'TAKE_PROFIT',reason:'止盈操作自动生成',isShareAnchor:false,anchorSharesMicro:null,derivedSharesBeforeCalibrationMicro:null,shareCorrectionMicro:null,anchorEffectiveAt:null,createdAt:now});
+     tx.objectStore('share_confirmation_events').put({id:'share-manual_trade-'+id+'-'+now.replace(/\D/g,''),entityType:'manual_trade',entityId:id,tradeDate:dt,navDate:dt,fundCode:m.fundMetrics.profile?.fundCode||null,actualAmountCent:amount,unitNavScaled:null,confirmedSharesMicro:-redeemedShares,confirmedAt:now,source:'REDEMPTION_PROPORTION'});
    });
     $('redeemAmount').value='';await this.renderRecords();await this.refreshAll();alert(`已转入现金池 ${yuan(amount)}，其中退出本金 ${yuan(allocation.exitedPrincipalCent)}，实现收益 ${yuan(allocation.realizedGainCent)}`);
   },
@@ -702,7 +795,7 @@ const App={
     }finally{button.disabled=false;button.textContent='更新行情'}
   },
   async renderAnalysis(){
-    const m=await Calc.metrics(),market=await Market.status(),realtime=Market.realtime();$('aXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';$('aAssets').textContent=yuan(m.total);$('aPrincipal').textContent=yuan(m.principal);$('aCash').textContent=yuan(m.cash);
+    const m=await Calc.metrics(),market=await Market.status(),realtime=Market.realtime();$('aXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';$('aSimulatedXirr').textContent=m.simulatedXirr==null?'暂不可计算':(m.simulatedXirr*100).toFixed(2)+'%';$('aAssets').textContent=yuan(m.total);$('aSimulatedAssets').textContent=m.simulatedTotal==null?'—':yuan(m.simulatedTotal);$('aPrincipal').textContent=yuan(m.principal);$('aCash').textContent=yuan(m.cash);
     const q=realtime.quote;$('realtimePoint').textContent=realtime.available?q.current.toFixed(2):'—';$('realtimeChange').textContent=realtime.available?`${q.change>=0?'+':''}${q.change.toFixed(2)}`:'—';$('realtimePercent').textContent=realtime.available?`${q.changePercent>=0?'+':''}${q.changePercent.toFixed(2)}%`:'—';
     $('realtimeDate').textContent=realtime.available?q.quoteDate:'—';$('realtimeUpdated').textContent=realtime.available?this.formatMarketTime(q.quoteAt):'—';$('realtimeSource').textContent=realtime.available?(MarketProvider.SOURCE_LABELS[q.source]||q.source):'—';$('realtimeStatus').textContent=realtime.available?'实时/准实时，仅供观察':(realtime.reason||'本次实时更新失败');
     $('marketClose').textContent=market.available?market.close.toFixed(2):'—';
@@ -719,7 +812,7 @@ const App={
   calibrationTime(value){return value?this.formatMarketTime(value):'—'},
   async renderFundBasis(){
     if(!await this.initialized())return;
-    const snapshots=await DB.all('calibration_snapshots'),cash=await Calc.cashPool(),market=await Market.status();
+    const snapshots=(await DB.all('calibration_snapshots')).filter(x=>['INITIALIZATION','MANUAL_CALIBRATION'].includes(x.source)),cash=await Calc.cashPool(),market=await Market.status(),m=await Calc.metrics();
     const basis=CalibrationCore.buildBasis(snapshots,{today:today(),marketAsOfDate:market.available?market.asOfDate:null,cashPoolCent:cash});
     this.currentFundBasis=basis;
     const box=$('fundBasisContent');
@@ -731,25 +824,58 @@ const App={
     const freshnessClass=f.code==='FRESH'?'green':f.code==='DUE'?'orange':'red';
     const relation=basis.marketAsOfDate&&basis.marketAsOfDate!==s.snapshotDate?'日期不同（数据源和用途不同）':'日期一致，但仍属于不同数据源和用途';
     box.innerHTML=`
-      <div class="card detail-hero"><div class="row"><h2>基金市值依据</h2><span class="badge ${freshnessClass}">${escapeHtml(f.label)}</span></div><span class="small">当前基金市值</span><b>${yuan(basis.fundMarketValueCent)}</b><div class="small">来自最新有效校准快照 · ${escapeHtml(age)}</div></div>
+      <div class="card detail-hero"><div class="row"><h2>基金市值依据</h2><span class="badge ${freshnessClass}">${escapeHtml(f.label)}</span></div><span class="small">最近真实校准市值</span><b>${yuan(basis.fundMarketValueCent)}</b><div class="small">来自最新有效校准快照 · ${escapeHtml(age)}</div><hr><span class="small">当前自动模拟市值</span><b>${m.simulatedFund==null?'—':yuan(m.simulatedFund)}</b><div class="small">${m.simulatedFund==null?escapeHtml(FundShareCore.SIMULATION_LABELS[m.fundMetrics.simulation.status]):`递推份额 ${sharesText(m.fundMetrics.derived.derivedSharesMicro)} × ${escapeHtml(m.fundMetrics.latestNav?.navDate||'—')} 单位净值 ${navText(m.fundMetrics.latestNav?.unitNavScaled)}`} · 非真实账户余额</div></div>
       ${basis.status==='ABNORMAL'?'<div class="notice error" style="margin-bottom:12px">快照总份额为零或数据异常，无法计算校准隐含净值；请重新人工校准。</div>':''}
-      <div class="card"><h2>同一快照的计算依据</h2><div class="detail-grid"><div class="detail-cell"><span class="small">基金市值</span><b>${yuan(basis.fundMarketValueCent)}</b></div><div class="detail-cell"><span class="small">总份额</span><b>${sharesText(basis.totalSharesMicro)}</b></div></div><div class="small" style="margin-top:8px">份额依据：用户于 ${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))} 人工校准时录入的基金总份额。</div><h3>校准隐含净值</h3><div class="formula">${yuan(basis.fundMarketValueCent)} ÷ ${sharesText(basis.totalSharesMicro)} 份 = ${navText(basis.impliedNavScaled)} 元/份</div><div class="small" style="margin-top:8px">净值依据日期：${escapeHtml(s.snapshotDate)}。市值、份额和隐含净值全部取自同一个最新有效快照。基金官方单位净值：未接入；当前策略计算不依赖基金官方单位净值。</div></div>
+      <div class="card"><h2>真实校准锚点</h2><div class="detail-grid"><div class="detail-cell"><span class="small">真实校准市值</span><b>${yuan(basis.fundMarketValueCent)}</b></div><div class="detail-cell"><span class="small">真实总份额</span><b>${sharesText(basis.totalSharesMicro)}</b></div></div><div class="small" style="margin-top:8px">用户于 ${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))} 录入；校准前递推份额 ${sharesText(s.derivedSharesBeforeCalibrationMicro)}，纠偏 ${sharesText(s.shareCorrectionMicro)}。</div><h3>校准隐含净值</h3><div class="formula">${yuan(basis.fundMarketValueCent)} ÷ ${sharesText(basis.totalSharesMicro)} 份 = ${navText(basis.impliedNavScaled)} 元/份</div><div class="small" style="margin-top:8px">隐含净值只用于解释同一真实快照；正式基金单位净值由独立的基金NAV记录管理，二者不互相覆盖。</div></div>
       <div class="card"><h2>时间与来源</h2><table><tr><td>人工校准时间</td><td>${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))}</td></tr><tr><td>校准数据对应日期</td><td>${escapeHtml(s.snapshotDate)}</td></tr><tr><td>持仓数据来源</td><td>${escapeHtml(this.calibrationSource(s.source))}</td></tr><tr><td>中证1000行情日期</td><td>${escapeHtml(basis.marketAsOfDate||'当前不可用')}</td></tr><tr><td>两类日期关系</td><td>${escapeHtml(relation)}</td></tr></table><div class="small" style="margin-top:8px">基金持仓数据用于基金市值、总份额、策略总资产和 XIRR 估值；中证1000指数数据用于回撤、近3年位置、MA200和下一交易日建议，二者互不替代。</div></div>
-      <div class="card"><h2>策略资产口径</h2><table><tr><td>基金市值</td><td>${yuan(basis.fundMarketValueCent)}</td></tr><tr><td>现金池</td><td>${yuan(basis.cashPoolCent)}</td></tr><tr><td><b>策略总资产</b></td><td><b>${yuan(basis.strategyTotalAssetsCent)}</b></td></tr></table><div class="small" style="margin-top:8px">接管后策略 XIRR 以外部现金流和最新策略总资产作为期末价值计算。</div></div>
-      <div class="card"><div class="row wrap"><button id="btnSnapshotDetail" class="secondary">快照详情</button><button id="btnCalibrationHistory" class="secondary">校准历史</button><button id="btnPrincipalHistory" class="secondary">本金变化记录</button></div></div>`;
+      <div class="card source-separation"><h2>正式与模拟口径</h2><table><tr><td>正式期末资产</td><td>${yuan(m.total)}</td></tr><tr><td>正式XIRR</td><td>${m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%'}</td></tr><tr><td>模拟期末资产</td><td>${m.simulatedTotal==null?'—':yuan(m.simulatedTotal)}</td></tr><tr><td>模拟XIRR</td><td>${m.simulatedXirr==null?'暂不可计算':(m.simulatedXirr*100).toFixed(2)+'%'}</td></tr></table><div class="small" style="margin-top:8px">两者共用同一套外部现金流；模拟口径只替换期末基金市值，不作为正式业绩或主要止盈归档依据。</div></div>
+      <div class="card"><div class="row wrap"><button id="btnSnapshotDetail" class="secondary">快照详情</button><button id="btnCalibrationHistory" class="secondary">校准历史</button><button id="btnPrincipalHistory" class="secondary">本金变化记录</button><button id="btnFundNavFromBasis" class="secondary">基金净值管理</button></div></div>`;
     $('btnSnapshotDetail').onclick=()=>this.openSnapshotDetail();
     $('btnCalibrationHistory').onclick=()=>this.showPage('calibration-history');
     $('btnPrincipalHistory').onclick=()=>this.showPage('principal-history');
+    $('btnFundNavFromBasis').onclick=()=>this.showPage('fund-nav');
   },
   openSnapshotDetail(){
     const s=this.currentFundBasis?.snapshot;if(!s)return;
-    $('modalSheet').innerHTML=`<div class="row"><h2>校准快照详情</h2><span class="badge ${s.voided?'red':'green'}">${s.voided?'已撤销':'有效'}</span></div><table><tr><td>快照编号</td><td>${escapeHtml(s.id)}</td></tr><tr><td>快照日期</td><td>${escapeHtml(s.snapshotDate)}</td></tr><tr><td>基金市值</td><td>${yuan(s.fundMarketValueCent)}</td></tr><tr><td>总份额</td><td>${sharesText(s.totalSharesMicro)}</td></tr><tr><td>校准隐含净值</td><td>${navText(CalibrationCore.impliedNav(s))} 元/份</td></tr><tr><td>当时在场本金</td><td>${yuan(s.inMarketPrincipalCent)}</td></tr><tr><td>当时现金池</td><td>${yuan(s.cashPoolBalanceCent)}</td></tr><tr><td>当时策略总资产</td><td>${yuan(s.strategyTotalAssetsCent)}</td></tr><tr><td>来源</td><td>${escapeHtml(this.calibrationSource(s.source))}</td></tr><tr><td>校准时间</td><td>${escapeHtml(this.calibrationTime(s.snapshotAt))}</td></tr><tr><td>创建时间</td><td>${escapeHtml(this.calibrationTime(s.createdAt))}</td></tr></table><button style="width:100%;margin-top:14px" onclick="App.closeModal()">关闭</button>`;
+    $('modalSheet').innerHTML=`<div class="row"><h2>校准快照详情</h2><span class="badge ${s.voided?'red':'green'}">${s.voided?'已撤销':'有效'}</span></div><table><tr><td>快照编号</td><td>${escapeHtml(s.id)}</td></tr><tr><td>快照日期</td><td>${escapeHtml(s.snapshotDate)}</td></tr><tr><td>基金市值</td><td>${yuan(s.fundMarketValueCent)}</td></tr><tr><td>真实总份额</td><td>${sharesText(s.totalSharesMicro)}</td></tr><tr><td>校准前递推份额</td><td>${sharesText(s.derivedSharesBeforeCalibrationMicro)}</td></tr><tr><td>份额纠偏</td><td>${sharesText(s.shareCorrectionMicro)}</td></tr><tr><td>校准隐含净值</td><td>${navText(CalibrationCore.impliedNav(s))} 元/份</td></tr><tr><td>当时在场本金</td><td>${yuan(s.inMarketPrincipalCent)}</td></tr><tr><td>当时现金池</td><td>${yuan(s.cashPoolBalanceCent)}</td></tr><tr><td>当时策略总资产</td><td>${yuan(s.strategyTotalAssetsCent)}</td></tr><tr><td>来源</td><td>${escapeHtml(this.calibrationSource(s.source))}</td></tr><tr><td>原因</td><td>${escapeHtml(s.reason||'—')}</td></tr><tr><td>校准时间</td><td>${escapeHtml(this.calibrationTime(s.snapshotAt))}</td></tr><tr><td>创建时间</td><td>${escapeHtml(this.calibrationTime(s.createdAt))}</td></tr></table><button style="width:100%;margin-top:14px" onclick="App.closeModal()">关闭</button>`;
     $('modal').classList.remove('hidden');
   },
   async renderCalibrationHistory(){
     const rows=CalibrationCore.sortNewestFirst(await DB.all('calibration_snapshots')),box=$('calibrationHistoryList');box.innerHTML='';
-    for(const s of rows){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(s.snapshotDate)}</b><span class="badge ${s.voided?'red':'green'}">${s.voided?'已撤销':'有效'}</span></div><div>${yuan(s.fundMarketValueCent)} · ${sharesText(s.totalSharesMicro)} 份</div><div class="meta">隐含净值 ${navText(CalibrationCore.impliedNav(s))} · ${escapeHtml(this.calibrationSource(s.source))} · ${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))}</div>`;box.appendChild(d)}
+    for(const s of rows){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(s.snapshotDate)}</b><span class="badge ${s.voided?'red':'green'}">${s.voided?'已撤销':'有效'}</span></div><div>${yuan(s.fundMarketValueCent)} · ${sharesText(s.totalSharesMicro)} 份</div><div class="meta">校准前 ${sharesText(s.derivedSharesBeforeCalibrationMicro)} · 纠偏 ${sharesText(s.shareCorrectionMicro)} · ${escapeHtml(this.calibrationSource(s.source))} · ${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))}</div>`;box.appendChild(d)}
     if(!rows.length)box.innerHTML='<div class="notice">暂无校准历史</div>';
+  },
+  async renderFundNav(){
+    const profiles=(await Fund.profiles()).filter(x=>!x.voided).sort((a,b)=>String(b.effectiveFrom).localeCompare(String(a.effectiveFrom))),current=await Fund.profile(),navs=(await Fund.navs()).filter(x=>!x.voided).sort((a,b)=>String(b.navDate).localeCompare(String(a.navDate))),fm=await Fund.metrics(),box=$('fundNavContent');
+    const profileCard=current?`<div class="card"><div class="row"><h2>当前基金资料</h2><span class="badge green">已配置</span></div><table><tr><td>基金代码</td><td>${escapeHtml(current.fundCode)}</td></tr><tr><td>基金名称</td><td>${escapeHtml(current.fundName)}</td></tr><tr><td>净值来源类型</td><td>${escapeHtml(current.navSourceType)}</td></tr><tr><td>生效日期</td><td>${escapeHtml(current.effectiveFrom)}</td></tr></table><button id="editFundProfile" class="secondary">创建新配置版本</button></div>`:`<div class="card"><h2>当前基金资料</h2><div class="notice error">尚未显式配置策略基金。已执行投入仍会即时记账，但份额保持待净值确认。</div><button id="editFundProfile">配置基金</button></div>`;
+    const latest=fm.latestNav,simulation=fm.simulation;
+    box.innerHTML=`${profileCard}<div class="card source-separation"><div class="row"><h2>份额与模拟估值</h2><span class="badge ${fm.pendingCount?'orange':'green'}">待确认 ${fm.pendingCount} 笔</span></div><table><tr><td>最近真实校准份额</td><td>${sharesText(fm.derived.anchor?.anchorSharesMicro)}</td></tr><tr><td>当前递推份额</td><td>${sharesText(fm.derived.derivedSharesMicro)}</td></tr><tr><td>最新正式单位净值</td><td>${latest?`${navText(latest.unitNavScaled)}（${escapeHtml(latest.navDate)}）`:'—'}</td></tr><tr><td>当前自动模拟市值</td><td>${simulation.marketValueCent==null?'—':yuan(simulation.marketValueCent)}</td></tr></table><div class="small">模拟市值不是基金账户真实余额；000852指数不会进入本页基金净值或份额计算。</div></div><div class="card"><div class="row"><h2>基金单位净值</h2><div class="action-row"><button id="addFundNav">人工录入</button><button id="autoFundNav" class="secondary">尝试自动更新</button></div></div><div id="fundNavStatus" class="notice hidden section-note"></div><div id="fundNavList" class="list"></div></div><div class="card"><h2>基金配置版本</h2><div id="fundProfileList" class="list"></div></div>`;
+    $('editFundProfile').onclick=()=>this.openFundProfile(current);$('addFundNav').onclick=()=>this.openFundNav();$('autoFundNav').onclick=async()=>{const result=await FundNavProvider.fetch(current);$('fundNavStatus').classList.remove('hidden');$('fundNavStatus').textContent=result.message};
+    const navList=$('fundNavList');for(const nav of navs){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(nav.navDate)} · ${navText(nav.unitNavScaled)}</b><span class="status-line"><span class="badge">${escapeHtml(nav.source)}</span><span class="badge ${nav.revisionStatus==='MODIFIED'?'modified':''} nav-history">${this.revisionLabel(nav.revisionStatus)}</span></span></div><div class="meta">${escapeHtml(nav.fundCode)} · 记录于 ${escapeHtml(this.calibrationTime(nav.recordedAt||nav.fetchedAt))}</div><div class="action-row"><button class="secondary correct-nav">修正净值</button></div>`;d.querySelector('.correct-nav').onclick=()=>this.openFundNav(nav);d.querySelector('.nav-history').onclick=()=>nav.revisionStatus==='MODIFIED'&&this.renderRevisionHistory('fund_nav',nav.id,'fund-nav');navList.appendChild(d)}if(!navs.length)navList.innerHTML='<div class="notice">暂无基金单位净值。请先配置基金，再人工录入T日正式单位净值。</div>';
+    const profileList=$('fundProfileList');for(const profile of profiles){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(profile.fundCode)} · ${escapeHtml(profile.fundName)}</b><span class="badge ${profile.isCurrent?'green':''}">${profile.isCurrent?'当前':'历史'}</span></div><div class="meta">${escapeHtml(profile.effectiveFrom)} ～ ${escapeHtml(profile.effectiveTo||'现在')} · ${escapeHtml(profile.navSourceType)} · ${escapeHtml(profile.changeReason||'—')}</div>`;profileList.appendChild(d)}
+  },
+  openFundProfile(current){
+    $('modalSheet').innerHTML=`<h2>${current?'创建基金配置新版本':'配置策略基金'}</h2><div class="notice">基金配置按生效日期版本化，不改写历史。中证1000指数代码000852不能作为基金代码。</div><label>基金代码</label><input id="fpCode" value="${escapeHtml(current?.fundCode||'')}" placeholder="必填"><label>基金名称</label><input id="fpName" value="${escapeHtml(current?.fundName||'')}" placeholder="必填"><label>净值数据来源</label><select id="fpSource"><option value="MANUAL_ONLY">人工录入</option><option value="AUTO_ADAPTER">自动适配器（当前未配置供应商）</option></select><label>生效日期</label><input id="fpEffective" type="date" value="${today()}"><label>变更原因</label><textarea id="fpReason" rows="2" placeholder="必填"></textarea><button id="fpSave">保存为新配置版本</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
+    if(current)$('fpSource').value=current.navSourceType||'MANUAL_ONLY';$('fpSave').onclick=()=>this.saveFundProfile();$('modal').classList.remove('hidden');
+  },
+  async saveFundProfile(){
+    const code=$('fpCode').value.trim(),name=$('fpName').value.trim(),source=$('fpSource').value,effective=$('fpEffective').value,reason=$('fpReason').value.trim();if(!code||!name||!effective||!reason){alert('基金代码、名称、生效日期和原因均必填');return}if(code==='000852'){alert('000852是中证1000指数代码，不能作为基金代码');return}if(!/^\d{6}$/.test(code)){alert('基金代码应为6位数字');return}
+    const profiles=await Fund.profiles(),current=profiles.filter(x=>!x.voided&&x.isCurrent).sort((a,b)=>String(b.effectiveFrom).localeCompare(String(a.effectiveFrom)))[0];if(current&&effective<current.effectiveFrom){alert('新配置生效日期不能早于当前配置版本');return}const now=new Date().toISOString(),id=`fund-${effective}-${Date.now()}`,next={id,fundCode:code,fundName:name,navSourceType:source,effectiveFrom:effective,effectiveTo:null,isCurrent:true,createdAt:now,changeReason:reason};
+    await DB.atomic(['fund_profiles'],tx=>{const store=tx.objectStore('fund_profiles');for(const profile of profiles.filter(x=>!x.voided&&x.isCurrent)){store.put({...profile,isCurrent:false,effectiveTo:addDays(effective,-1),supersededAt:now})}store.put(next)});await Fund.confirmAllPending();this.closeModal();await this.renderFundNav();await this.refreshAll();
+  },
+  async openFundNav(existing=null){
+    const defaultDate=existing?.navDate||today(),profile=existing?FundShareCore.getFundProfile(await Fund.profiles(),defaultDate):await Fund.profile(defaultDate);if(!profile){alert('请先配置该日期生效的策略基金');return}
+    $('modalSheet').innerHTML=`<h2>${existing?'修正基金单位净值':'人工录入基金单位净值'}</h2><div class="notice">只接受策略基金原T日正式单位净值；不得使用T+1净值、000852指数或盘中估值替代。</div><label>基金</label><input value="${escapeHtml(profile.fundCode)} · ${escapeHtml(profile.fundName)}" disabled><label>净值日期</label><input id="fnDate" type="date" value="${escapeHtml(defaultDate)}" ${existing?'disabled':''}><label>${existing?'新单位净值':'单位净值'}</label><input id="fnValue" inputmode="decimal" value="${existing?navText(existing.unitNavScaled):''}" placeholder="最多6位小数"><label>${existing?'修改原因（必填）':'录入说明'}</label><textarea id="fnReason" rows="2"></textarea>${existing?`<div class="small">原单位净值：${navText(existing.unitNavScaled)}</div>`:''}<button id="fnSave">${existing?'保存修正并重算份额':'保存并确认待处理份额'}</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
+    $('fnSave').onclick=()=>this.saveFundNav(existing);$('modal').classList.remove('hidden');
+  },
+  async saveFundNav(existing){
+    const date=$('fnDate').value,reason=$('fnReason').value.trim();let unitNavScaled;try{unitNavScaled=FundShareCore.parseScaledDecimal($('fnValue').value)}catch(error){alert(error.message==='DECIMAL_PRECISION_EXCEEDED'?'单位净值最多保留6位小数':'请输入大于0的有效单位净值');return}const profile=await Fund.profile(date);if(!profile){alert('该日期没有生效的基金配置');return}if(existing&&unitNavScaled===existing.unitNavScaled){alert('没有检测到净值变化');return}if(existing&&!reason){alert('修正净值必须填写原因');return}const trading=await TradingCalendarProvider.isTradingDay(date);if(trading===false){alert('净值日期不是交易日');return}if(trading===null){alert('缺少该年度交易日历，暂不能确认净值日期');return}
+    if(!existing&&await Fund.nav(profile.fundCode,date)){alert('该基金T日净值已存在，请从净值列表进入“修正净值”，以保留原值、原因和修订历史');return}
+    const now=new Date().toISOString(),corrected=!!existing,id=`${profile.fundCode}-${date}`,nav=existing?{...existing,unitNavScaled,source:'MANUAL_CORRECTED',revisionStatus:'MODIFIED',modifiedAt:now,changeReason:reason}:{id,fundCode:profile.fundCode,fundProfileId:profile.id,navDate:date,unitNavScaled,source:'MANUAL',recordedAt:now,revisionStatus:'ORIGINAL',voided:false,note:reason,createdAt:now};
+    if(nav.fundCode==='000852'){alert('指数行情不能写入基金净值');return}const updates=await Fund.prepareUpdatesForNav(nav,corrected,now),revision=corrected?{id:`rev-nav-${now.replace(/\D/g,'')}-${id}`,entityType:'fund_nav',entityId:id,fieldName:'unitNavScaled',fieldLabel:'基金单位净值',changeType:'FIELD_CORRECTION',before:existing.unitNavScaled,after:unitNavScaled,changedAt:now,changeReason:reason,source:'USER_EDIT'}:null;
+    if(corrected)nav.originalValues=existing.originalValues||{unitNavScaled:existing.unitNavScaled,source:existing.source};
+    await DB.atomic(['fund_nav_daily','investment_cycles','manual_trades','share_confirmation_events','record_revisions'],tx=>{tx.objectStore('fund_nav_daily').put(nav);for(const x of updates.cycleUpdates)tx.objectStore('investment_cycles').put(x);for(const x of updates.tradeUpdates)tx.objectStore('manual_trades').put(x);for(const x of updates.events)tx.objectStore('share_confirmation_events').put(x);if(revision)tx.objectStore('record_revisions').put(revision)});
+    this.closeModal();await this.renderFundNav();await this.renderRecords();await this.refreshAll();alert(`基金净值已保存，确认/重算 ${updates.events.length} 笔投入份额`);
   },
   async renderPrincipalHistory(){
     const baseline=await DB.get('initialization_baseline','baseline'),cycles=await DB.all('investment_cycles'),trades=await DB.all('manual_trades');
@@ -790,13 +916,13 @@ const App={
    alert('已保存为新策略版本，仅影响生效日期后的未来规则');await this.refreshAll();
  },
   async exportBackup(){
-    const data={schemaVersion:2,appVersion:'1.0.7',exportedAt:new Date().toISOString(),stores:{}};
+    const data={schemaVersion:3,appVersion:'1.0.8',databaseVersion:4,exportedAt:new Date().toISOString(),stores:{}};
    for(const s of STORES)data.stores[s]=await DB.all(s);
    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`中证1000策略备份_${today()}.json`;a.click();URL.revokeObjectURL(a.href);
  },
  async importBackup(file){
-    if(!file)return;let data;try{data=JSON.parse(await file.text())}catch(e){alert('备份文件不是有效JSON');return}if(![1,2].includes(data.schemaVersion)||!data.stores||typeof data.stores!=='object'||!Array.isArray(data.stores.record_revisions||[])){alert('备份结构或版本不兼容');return}const recordCount=STORES.reduce((n,s)=>n+(Array.isArray(data.stores[s])?data.stores[s].length:0),0);if(!confirm(`将用备份中的 ${recordCount} 条记录覆盖当前本地数据库，包括全部修订历史。继续？`))return;
-   await DB.atomic(STORES,tx=>{for(const s of STORES){const store=tx.objectStore(s);store.clear();for(const x of (data.stores[s]||[]))store.put(x)}});
+    if(!file)return;let data;try{data=JSON.parse(await file.text())}catch(e){alert('备份文件不是有效JSON');return}let normalized;try{normalized=FundShareCore.normalizeBackupStores(data,STORES)}catch(e){alert(e.message==='INDEX_AS_FUND'?'备份包含把000852当作基金净值的数据，已拒绝导入':'备份结构或版本不兼容');return}const recordCount=STORES.reduce((n,s)=>n+normalized[s].length,0);if(!confirm(`将用备份中的 ${recordCount} 条记录覆盖当前本地数据库，包括基金净值、份额确认、校准锚点和全部修订历史。继续？`))return;
+   await DB.atomic(STORES,tx=>{for(const s of STORES){const store=tx.objectStore(s);store.clear();for(const x of normalized[s])store.put(x)}});
    alert('恢复完成');location.reload();
  }
 };
