@@ -10,19 +10,24 @@ const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map
 for(const source of inline) new Function(source);
 assert.match(html,/\.\/strategy-core\.js/);
 assert.match(html,/\.\/market-data-core\.js/);
+assert.match(html,/\.\/calibration-core\.js/);
 assert.match(html,/id="recommendCard"/);
 assert.match(html,/id="btnMarketRefresh"/);
 assert.match(html,/openRecommendationDetails/);
 assert.match(html,/近250日高点回撤/);
-assert.match(html,/PWA V1\.0\.4/);
-assert.match(readme,/PWA V1\.0\.4/);
-assert.match(githubReadme,/V1\.0\.4/);
+assert.match(html,/id="fundValueCard"/);
+assert.match(html,/id="page-fund-basis"/);
+assert.match(html,/id="page-principal-history"/);
+assert.match(html,/本金变化记录/);
+assert.match(html,/PWA V1\.0\.5/);
+assert.match(readme,/PWA V1\.0\.5/);
+assert.match(githubReadme,/V1\.0\.5/);
 assert.doesNotMatch(html,/else\s*\{\s*const dow=d\.getDay\(\);\s*isTrading=/);
 assert.match(html,/DB_VERSION=2/);
 assert.match(html,/keyPath:s==='market_daily'\?'date':'id'/);
 assert.match(html,/closeScaled:Math\.round/);
 
-for(const file of ['strategy-core.js','market-data-core.js','market-provider.js']) {
+for(const file of ['strategy-core.js','market-data-core.js','market-provider.js','calibration-core.js']) {
   new Function(fs.readFileSync(path.join(root,file),'utf8'));
 }
 
@@ -44,8 +49,8 @@ assert.equal(new Set(dates).size,dates.length);
 assert.ok(market.items.every(x=>Number(x.close)>0));
 
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-assert.match(sw,/csi1000-pwa-v1\.0\.4/);
-for(const asset of ['./strategy-core.js','./market-data-core.js','./market-provider.js','./data/csi1000-history.json']) assert.ok(sw.includes(asset));
+assert.match(sw,/csi1000-pwa-v1\.0\.5/);
+for(const asset of ['./strategy-core.js','./market-data-core.js','./market-provider.js','./calibration-core.js','./data/csi1000-history.json']) assert.ok(sw.includes(asset));
 new Function(sw);
 
 console.log(`project checks passed: ${market.items.length} market rows, ${Object.keys(calendar.closures).length} weekday closures`);

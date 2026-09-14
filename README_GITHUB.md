@@ -1,4 +1,4 @@
-# 中证1000策略助手 V1.0.4｜GitHub Pages + GitHub Actions 版
+# 中证1000策略助手 V1.0.5｜GitHub Pages + GitHub Actions 版
 
 ## 架构
 
@@ -64,12 +64,13 @@ GitHub仓库不需要保存任何个人投资数据。
 ```bash
 node tests/strategy-core.test.js
 node tests/market-data-core.test.js
+node tests/calibration-core.test.js
 node tests/check-project.js
 python -m py_compile scripts/update_market_data.py
 python scripts/update_market_data.py
 ```
 
-前三项验证 Frozen 关键边界、三级行情通道、新鲜度、PWA 静态资源、交易日历与行情文件结构；最后一项需要联网并只更新公开指数行情。
+前四项验证 Frozen 关键边界、校准快照一致性、本金变化记录、三级行情通道、新鲜度、PWA 静态资源、交易日历与行情文件结构；最后一项需要联网并只更新公开指数行情。
 
 ## 本地隐私
 
