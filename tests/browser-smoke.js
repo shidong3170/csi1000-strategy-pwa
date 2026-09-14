@@ -2,121 +2,60 @@ const assert=require('node:assert/strict');
 
 const endpoint=process.env.CDP_ENDPOINT||'http://127.0.0.1:9223';
 const pageUrl=process.env.PWA_URL||'http://127.0.0.1:8765/index.html';
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 async function main(){
-  const tabs=await fetch(`${endpoint}/json` ).then(response=>response.json());
+  const tabs=await fetch(`${endpoint}/json`).then(response=>response.json());
   const target=tabs.find(tab=>tab.type==='page'&&tab.url.startsWith(pageUrl));
-  if(!target) throw new Error('PWA_BROWSER_TAB_NOT_FOUND');
-  const socket=new WebSocket(target.webSocketDebuggerUrl),pending=new Map();
-  let nextId=0;
-  socket.onmessage=event=>{
-    const message=JSON.parse(event.data);
-    if(!message.id) return;
-    const waiter=pending.get(message.id);
-    if(!waiter) return;
-    pending.delete(message.id);
-    message.error?waiter.reject(new Error(message.error.message)):waiter.resolve(message.result);
-  };
+  if(!target)throw new Error('PWA_BROWSER_TAB_NOT_FOUND');
+  const socket=new WebSocket(target.webSocketDebuggerUrl),pending=new Map();let nextId=0;
+  socket.onmessage=event=>{const message=JSON.parse(event.data);if(!message.id)return;const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);message.error?waiter.reject(new Error(message.error.message)):waiter.resolve(message.result)};
   await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject});
-  const call=(method,params={})=>new Promise((resolve,reject)=>{
-    const id=++nextId;pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params}));
-  });
-  await call('Page.enable');
-  await call('Runtime.enable');
-  await call('Page.reload',{ignoreCache:true});
-  await new Promise(resolve=>setTimeout(resolve,1200));
-  const setupExpression=`(async()=>{
-    const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-    window.alert=()=>{};window.confirm=()=>true;
-    if(document.querySelector('#initCard:not(.hidden)')){
-      document.querySelector('#initMarketValue').value='21647';
-      document.querySelector('#initShares').value='10000';
-      document.querySelector('#btnInitialize').click();
-      await delay(500);
-    }
-    const date=today(),strategy=await App.strategyForDate(date);
-    let record=await DB.get('investment_cycles','cycle-'+date);
-    if(!record){await App.ensurePendingCycle(date,strategy);await App.saveCycle(date,10000,strategy,'EXECUTED');record=await DB.get('investment_cycles','cycle-'+date)}
-    if(PrincipalRevisionCore.actualOf(record)!==20000){
-      App.openRecordEdit(record,'investment_cycle');
-      document.querySelector('#erActual').value='200';document.querySelector('#erCash').value='0';document.querySelector('#erExternal').value='200';document.querySelector('#erReason').value='浏览器回归：与实际成交核对';document.querySelector('#erSave').click();
-      await delay(700);
-    }
-    const baseline=await DB.get('initialization_baseline','baseline');
-    if(baseline.takeoverInMarketPrincipalCent!==2118000){
-      App.openBaselineEdit(baseline);document.querySelector('#beTakeoverPrincipal').value='21180';document.querySelector('#beReason').value='浏览器回归：修正接管本金';document.querySelector('#beSave').click();await delay(700);
-    }
-    const metrics=await Calc.metrics(),cycle=await DB.get('investment_cycles','cycle-'+date),opening=await DB.get('external_cashflows','opening'),revisions=await DB.all('record_revisions');
-    await DB.clear('record_revisions');await DB.atomic(['record_revisions'],tx=>{for(const revision of revisions)tx.objectStore('record_revisions').put(revision)});const restoredRevisions=(await DB.all('record_revisions')).length;
-    return {principal:metrics.principal,cycleAmount:cycle.actualAmountCent,cyclePlanned:cycle.plannedAmountCent,cycleExecution:cycle.executionStatus,cycleRevision:cycle.revisionStatus,openingAmount:opening.amountCent,revisionCount:revisions.length,restoredRevisions};
-  })()`;
-  const setupResult=await call('Runtime.evaluate',{expression:setupExpression,awaitPromise:true,returnByValue:true});
-  if(setupResult.exceptionDetails) throw new Error(setupResult.exceptionDetails.text);
-  await call('Page.reload',{ignoreCache:true});await new Promise(resolve=>setTimeout(resolve,1200));
-  const expression=`(async()=>{
-    const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-    window.alert=()=>{};window.confirm=()=>true;
-    App.showPage('principal-basis');await delay(300);
-    const basisText=document.querySelector('#principalBasisContent').textContent;
-    App.showPage('records');await delay(300);
-    const recordsText=document.querySelector('#recordsList').textContent;
-    [...document.querySelectorAll('nav button')].find(button=>button.textContent.includes('分析')).click();
-    await delay(500);
-    document.querySelector('#btnMarketRefresh').click();
-    await delay(15000);
-    return {
-      version:document.querySelector('#headerSub').textContent,
-      realtimeTitle:document.querySelector('#realtimePoint').closest('.card').querySelector('h2').textContent,
-      realtimePoint:document.querySelector('#realtimePoint').textContent,
-      realtimeStatus:document.querySelector('#realtimeStatus').textContent,
-      realtimeSource:document.querySelector('#realtimeSource').textContent,
-      marketClose:document.querySelector('#marketClose').textContent,
-      marketState:document.querySelector('#marketFresh').textContent,
-      updateResult:document.querySelector('#marketUpdateResult').textContent,
-      separationNotice:[...document.querySelectorAll('.notice')].some(node=>node.textContent.includes('不作为策略计算依据')),
-      basisText,recordsText,
-      persistedPrincipal:(await Calc.metrics()).principal,
-      persistedRevisions:(await DB.all('record_revisions')).length,
-      databaseVersion:(await DB.open()).version
-    };
-  })()`;
-  const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});
-  if(result.exceptionDetails) throw new Error(result.exceptionDetails.text);
-  const value=result.result.value;
-  await call('Network.enable');
-  await call('Runtime.evaluate',{expression:`navigator.serviceWorker.ready.then(()=>true)`,awaitPromise:true,returnByValue:true});
-  await call('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0,connectionType:'none'});
-  await call('Page.reload');await new Promise(resolve=>setTimeout(resolve,1500));
-  const offlineResult=await call('Runtime.evaluate',{expression:`(async()=>({version:document.querySelector('#headerSub')?.textContent||'',principal:(await Calc.metrics()).principal,controlled:!!navigator.serviceWorker.controller}))()`,awaitPromise:true,returnByValue:true});
-  await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1,connectionType:'none'});
-  socket.close();
-  if(offlineResult.exceptionDetails) throw new Error(offlineResult.exceptionDetails.text);
-  const offline=offlineResult.result.value;
-  console.log(JSON.stringify(value,null,2));
-  const setup=setupResult.result.value;
-  assert.equal(setup.principal,2138000);
-  assert.equal(setup.cycleAmount,20000);
-  assert.equal(setup.cyclePlanned,10000);
-  assert.equal(setup.cycleExecution,'EXECUTED');
-  assert.equal(setup.cycleRevision,'MODIFIED');
-  assert.equal(setup.openingAmount,-2118000);
-  assert.ok(setup.revisionCount>=2);
-  assert.equal(setup.restoredRevisions,setup.revisionCount);
-  assert.match(value.version,/V1\.0\.7/);
-  assert.equal(value.databaseVersion,3);
-  assert.equal(value.persistedPrincipal,2138000);
-  assert.equal(value.persistedRevisions,setup.revisionCount);
-  assert.match(offline.version,/V1\.0\.7/);
-  assert.equal(offline.principal,2138000);
-  assert.equal(offline.controlled,true);
-  assert.match(value.basisText,/历史累计外部投入/);
-  assert.match(value.recordsText,/已执行/);
-  assert.match(value.recordsText,/已修改/);
-  assert.equal(value.realtimeTitle,'实时市场');
-  assert.equal(value.separationNotice,true);
-  if(value.realtimePoint!=='—') assert.match(value.realtimeSource,/MANUAL_DIRECT_REALTIME/);
-  else assert.match(value.updateResult,/实时指数不可用/);
-  assert.notEqual(value.marketClose,'—');
+  const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++nextId;pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params}))});
+  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw new Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result.value};
+  const reload=async()=>{await call('Page.reload',{ignoreCache:true});await delay(1400)};
+  await call('Page.enable');await call('Runtime.enable');await reload();
+
+  // Build a real V3 IndexedDB, then let the production V4 upgrade handler migrate it.
+  await evaluate(`(async()=>{
+    if(DB.db){DB.db.close();DB.db=null}
+    await new Promise((resolve,reject)=>{const r=indexedDB.deleteDatabase(DB_NAME);r.onsuccess=resolve;r.onerror=()=>reject(r.error);r.onblocked=()=>reject(new Error('DELETE_BLOCKED'))});
+    const oldStores=['app_meta','initialization_baseline','strategy_versions','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
+    await new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,3);r.onupgradeneeded=e=>{const db=e.target.result;for(const name of oldStores)db.createObjectStore(name,{keyPath:name==='market_daily'?'date':'id'})};r.onerror=()=>reject(r.error);r.onsuccess=()=>{const db=r.result,tx=db.transaction(oldStores,'readwrite'),now=new Date().toISOString();tx.objectStore('app_meta').put({id:'app',initialized:true,schemaVersion:3});tx.objectStore('initialization_baseline').put({id:'baseline',strategyStartDate:'2023-01-01',historicalExecutedCycles:171,historicalInvestedPrincipalCent:2138000,takeoverDate:today(),takeoverInMarketPrincipalCent:2138000,revisionStatus:'ORIGINAL',createdAt:now});tx.objectStore('strategy_versions').put({id:'strategy-v1.0',version:'1.0',effectiveFrom:today(),isCurrent:true,totalInvestmentBaseCent:15000000,targetPositionMinBp:1500,targetPositionMaxBp:1600,warningPositionBp:1800,slowdownPositionBp:1900,baseHardLimitBp:2000,baseHardLimitCent:3000000,annualHardLimitIncrementCent:600000,baseRecurringAmountCent:10000,targetXirrBp:600,minHoldingYears:3,maxHoldingYears:5,createdAt:now});tx.objectStore('external_cashflows').put({id:'opening',date:today(),type:'TAKEOVER_OPENING',amountCent:-2138000});tx.objectStore('calibration_snapshots').put({id:'old-cal',snapshotDate:today(),snapshotAt:now,fundMarketValueCent:2164700,totalSharesMicro:10000000000,source:'INITIALIZATION',createdAt:now});tx.objectStore('investment_cycles').put({id:'old-executed',scheduledDate:today(),status:'EXECUTED',actualAmountCent:10000,createdAt:now});tx.objectStore('manual_trades').put({id:'old-not',type:'MANUAL_BUY',tradeDate:today(),status:'NOT_EXECUTED',amountCent:0,createdAt:now});tx.objectStore('record_revisions').put({id:'old-revision',entityType:'investment_cycle',entityId:'old-executed',fieldName:'actualAmountCent',before:5000,after:10000,changedAt:now});tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>reject(tx.error)}});
+    return true;
+  })()`);
+  await reload();
+  const migration=await evaluate(`(async()=>{const db=await DB.open(),executed=await DB.get('investment_cycles','old-executed'),notExecuted=await DB.get('manual_trades','old-not'),cal=await DB.get('calibration_snapshots','old-cal'),app=await DB.get('app_meta','app');return {version:db.version,stores:[...db.objectStoreNames],executedShare:executed.shareConfirmationStatus,executedAmount:executed.actualAmountCent,notExecutedShare:notExecuted.shareConfirmationStatus,anchor:cal.isShareAnchor,anchorShares:cal.anchorSharesMicro,appSchema:app.schemaVersion,revision:!!await DB.get('record_revisions','old-revision'),principal:(await Calc.metrics()).principal}})()`);
+  assert.equal(migration.version,4);assert.ok(migration.stores.includes('fund_profiles'));assert.ok(migration.stores.includes('fund_nav_daily'));assert.ok(migration.stores.includes('share_confirmation_events'));assert.equal(migration.executedShare,'PENDING_NAV');assert.equal(migration.executedAmount,10000);assert.equal(migration.notExecutedShare,'NOT_APPLICABLE');assert.equal(migration.anchor,true);assert.equal(migration.anchorShares,10000000000);assert.equal(migration.appSchema,4);assert.equal(migration.revision,true);assert.equal(migration.principal,2148000);
+
+  // Reset only the isolated browser profile and exercise a fresh V1.0.8 workflow.
+  await evaluate(`(async()=>{if(DB.db){DB.db.close();DB.db=null}await new Promise((resolve,reject)=>{const r=indexedDB.deleteDatabase(DB_NAME);r.onsuccess=resolve;r.onerror=()=>reject(r.error)});return true})()`);
+  await reload();
+  const workflow=await evaluate(`(async()=>{
+    const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));window.alert=()=>{};window.confirm=()=>true;
+    $('initMarketValue').value='21647';$('initShares').value='10000';$('initPrincipal').value='21380';$('initStartDate').value='2023-01-01';$('initCycles').value='171';await App.initialize();const opening=await DB.get('external_cashflows','opening');await DB.put('external_cashflows',{...opening,date:'2026-01-01'});
+    App.showPage('fund-nav');await wait(200);App.openFundProfile(null);$('fpCode').value='999999';$('fpName').value='浏览器隔离测试基金';$('fpEffective').value=today();$('fpReason').value='V1.0.8浏览器隔离测试';await App.saveFundProfile();
+    const date=today(),strategy=await App.strategyForDate(date);await App.ensurePendingCycle(date,strategy);await App.saveCycle(date,10000,strategy,'EXECUTED');
+    const initialRecord=await DB.get('investment_cycles','cycle-'+date),initialMetrics=await Calc.metrics();
+    App.openRecordEdit(initialRecord,'investment_cycle');$('erActual').value='600';$('erCash').value='0';$('erExternal').value='600';$('erReason').value='浏览器回归：实际成交600元';await App.saveRecordEdit(initialRecord,'investment_cycle');
+    const modified=await DB.get('investment_cycles','cycle-'+date),modifiedMetrics=await Calc.metrics();
+    const nextDate=addDays(date,1),profile=await Fund.profile(date),now=new Date().toISOString();
+    const nextNav={id:'999999-'+nextDate,fundCode:'999999',fundProfileId:profile.id,navDate:nextDate,unitNavScaled:1260000,source:'MANUAL',recordedAt:now,revisionStatus:'ORIGINAL',voided:false,createdAt:now};await DB.put('fund_nav_daily',nextNav);await Fund.confirmPendingForNav(nextNav);const afterT1=await DB.get('investment_cycles','cycle-'+date);
+    const nav={id:'999999-'+date,fundCode:'999999',fundProfileId:profile.id,navDate:date,unitNavScaled:1250000,source:'MANUAL',recordedAt:now,revisionStatus:'ORIGINAL',voided:false,createdAt:now},updates=await Fund.prepareUpdatesForNav(nav,false,now);await DB.atomic(['fund_nav_daily','investment_cycles','manual_trades','share_confirmation_events'],tx=>{tx.objectStore('fund_nav_daily').put(nav);for(const x of updates.cycleUpdates)tx.objectStore('investment_cycles').put(x);for(const x of updates.tradeUpdates)tx.objectStore('manual_trades').put(x);for(const x of updates.events)tx.objectStore('share_confirmation_events').put(x)});
+    const confirmed=await DB.get('investment_cycles','cycle-'+date),confirmedMetrics=await Calc.metrics();
+    const correctedAt=new Date(Date.now()+1000).toISOString(),correctedNav={...nav,unitNavScaled:1000000,source:'MANUAL_CORRECTED',revisionStatus:'MODIFIED',modifiedAt:correctedAt,changeReason:'浏览器回归：修正净值'},correctedUpdates=await Fund.prepareUpdatesForNav(correctedNav,true,correctedAt),revision={id:'rev-nav-test',entityType:'fund_nav',entityId:nav.id,fieldName:'unitNavScaled',fieldLabel:'基金单位净值',before:1250000,after:1000000,changedAt:correctedAt,changeReason:'浏览器回归：修正净值',source:'USER_EDIT'};await DB.atomic(['fund_nav_daily','investment_cycles','manual_trades','share_confirmation_events','record_revisions'],tx=>{tx.objectStore('fund_nav_daily').put(correctedNav);for(const x of correctedUpdates.cycleUpdates)tx.objectStore('investment_cycles').put(x);for(const x of correctedUpdates.tradeUpdates)tx.objectStore('manual_trades').put(x);for(const x of correctedUpdates.events)tx.objectStore('share_confirmation_events').put(x);tx.objectStore('record_revisions').put(revision)});
+    const corrected=await DB.get('investment_cycles','cycle-'+date),correctedMetrics=await Calc.metrics(),confirmedEvents=await DB.all('share_confirmation_events');
+    $('cMarketValue').value='10500';$('cShares').value='10550';$('cReason').value='浏览器回归：真实账户校准';await App.calibrate();const calibrationMetrics=await Calc.metrics(),calibration=calibrationMetrics.cal;
+    App.showPage('records');await wait(200);const recordsText=$('recordsList').textContent;App.showPage('fund-basis');await wait(200);const basisText=$('fundBasisContent').textContent;App.showPage('analysis');await wait(200);const analysisText=$('page-analysis').textContent;
+    const exported={schemaVersion:3,stores:{}};for(const store of STORES)exported.stores[store]=await DB.all(store);const beforeCounts={profiles:exported.stores.fund_profiles.length,navs:exported.stores.fund_nav_daily.length,events:exported.stores.share_confirmation_events.length,revisions:exported.stores.record_revisions.length};await DB.atomic(['fund_profiles','fund_nav_daily','share_confirmation_events','record_revisions'],tx=>{for(const store of ['fund_profiles','fund_nav_daily','share_confirmation_events','record_revisions'])tx.objectStore(store).clear()});const normalized=FundShareCore.normalizeBackupStores(exported,STORES);await DB.atomic(STORES,tx=>{for(const store of STORES){const target=tx.objectStore(store);target.clear();for(const row of normalized[store])target.put(row)}});const afterCounts={profiles:(await DB.all('fund_profiles')).length,navs:(await DB.all('fund_nav_daily')).length,events:(await DB.all('share_confirmation_events')).length,revisions:(await DB.all('record_revisions')).length};
+    return {version:$('headerSub').textContent,databaseVersion:(await DB.open()).version,initialShare:initialRecord.shareConfirmationStatus,initialPrincipal:initialMetrics.principal,initialCycles:initialMetrics.breakdown.effectiveCycleCount,modifiedShare:modified.shareConfirmationStatus,modifiedPrincipal:modifiedMetrics.principal,modifiedCycles:modifiedMetrics.breakdown.effectiveCycleCount,modifiedRevision:modified.revisionStatus,afterT1:afterT1.shareConfirmationStatus,confirmedStatus:confirmed.shareConfirmationStatus,confirmedShares:confirmed.confirmedSharesMicro,confirmedDerived:confirmedMetrics.fundMetrics.derived.derivedSharesMicro,correctedStatus:corrected.shareConfirmationStatus,correctedShares:corrected.confirmedSharesMicro,correctedDerived:correctedMetrics.fundMetrics.derived.derivedSharesMicro,realFund:correctedMetrics.fund,simulatedFund:correctedMetrics.simulatedFund,formalXirr:correctedMetrics.xirr,simulatedXirr:correctedMetrics.simulatedXirr,calibrationAnchor:calibration.anchorSharesMicro,calibrationBefore:calibration.derivedSharesBeforeCalibrationMicro,calibrationCorrection:calibration.shareCorrectionMicro,calibrationReal:calibrationMetrics.fund,postCalibrationDerived:calibrationMetrics.fundMetrics.derived.derivedSharesMicro,eventCount:confirmedEvents.length,navRevision:!!await DB.get('record_revisions','rev-nav-test'),recordsText,basisText,analysisText,beforeCounts,afterCounts}
+  })()`);
+  assert.match(workflow.version,/V1\.0\.8/);assert.equal(workflow.databaseVersion,4);assert.equal(workflow.initialShare,'PENDING_NAV');assert.equal(workflow.initialPrincipal,2148000);assert.equal(workflow.initialCycles,172);assert.equal(workflow.modifiedShare,'PENDING_NAV');assert.equal(workflow.modifiedPrincipal,2198000);assert.equal(workflow.modifiedCycles,172);assert.equal(workflow.modifiedRevision,'MODIFIED');assert.equal(workflow.afterT1,'PENDING_NAV');assert.equal(workflow.confirmedStatus,'CONFIRMED');assert.equal(workflow.confirmedShares,480000000);assert.equal(workflow.confirmedDerived,10480000000);assert.equal(workflow.correctedStatus,'MANUAL_CORRECTED');assert.equal(workflow.correctedShares,600000000);assert.equal(workflow.correctedDerived,10600000000);assert.equal(workflow.realFund,2164700);assert.equal(workflow.simulatedFund,1060000);assert.notEqual(workflow.formalXirr,workflow.simulatedXirr);assert.equal(workflow.calibrationAnchor,10550000000);assert.equal(workflow.calibrationBefore,10600000000);assert.equal(workflow.calibrationCorrection,-50000000);assert.equal(workflow.calibrationReal,1050000);assert.equal(workflow.postCalibrationDerived,10550000000);assert.ok(workflow.eventCount>=2);assert.equal(workflow.navRevision,true);assert.match(workflow.recordsText,/已执行/);assert.match(workflow.recordsText,/已修改/);assert.match(workflow.recordsText,/人工修正确认/);assert.match(workflow.basisText,/最近真实校准市值/);assert.match(workflow.basisText,/当前自动模拟市值/);assert.match(workflow.basisText,/正式XIRR/);assert.match(workflow.basisText,/模拟XIRR/);assert.match(workflow.analysisText,/正式接管后策略XIRR/);assert.match(workflow.analysisText,/模拟接管后策略XIRR/);assert.deepEqual(workflow.afterCounts,workflow.beforeCounts);
+
+  const market=await evaluate(`(async()=>{const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));App.showPage('analysis');await wait(200);$('btnMarketRefresh').click();await wait(15000);return {point:$('realtimePoint').textContent,source:$('realtimeSource').textContent,close:$('marketClose').textContent,result:$('marketUpdateResult').textContent,separated:[...document.querySelectorAll('.notice')].some(node=>node.textContent.includes('不作为策略计算依据'))}})()`);
+  assert.notEqual(market.close,'—');assert.equal(market.separated,true);if(market.point!=='—')assert.match(market.source,/MANUAL_DIRECT_REALTIME/);else assert.match(market.result,/实时指数不可用/);
+  await call('Network.enable');await evaluate(`navigator.serviceWorker.ready.then(()=>true)`);await call('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0,connectionType:'none'});await call('Page.reload');await delay(1600);const offline=await evaluate(`(async()=>({version:$('headerSub')?.textContent||'',principal:(await Calc.metrics()).principal,controlled:!!navigator.serviceWorker.controller}))()`);await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1,connectionType:'none'});socket.close();assert.match(offline.version,/V1\.0\.8/);assert.equal(offline.principal,2198000);assert.equal(offline.controlled,true);
+  console.log(JSON.stringify({migration,workflow,market,offline},null,2));
 }
 
 main().catch(error=>{console.error(error);process.exitCode=1});
