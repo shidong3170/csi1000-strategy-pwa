@@ -9,8 +9,9 @@
   const Core=window.MarketDataCore;
   const STORAGE_ID='csi1000-history';
   const REQUEST_TIMEOUT_MS=Number(window.MARKET_REQUEST_TIMEOUT_MS)||12000;
-  const SOURCE_LABELS={MANUAL_DIRECT:'MANUAL_DIRECT · 东方财富手动直连',GITHUB_AUTO:'GITHUB_AUTO · GitHub自动行情',LOCAL_CACHE:'LOCAL_CACHE · 手机本地缓存'};
+  const SOURCE_LABELS={MANUAL_DIRECT:'MANUAL_DIRECT · 东方财富手动直连',GITHUB_AUTO:'GITHUB_AUTO · GitHub自动行情',LOCAL_CACHE:'LOCAL_CACHE · 手机本地缓存',MANUAL_DIRECT_REALTIME:'MANUAL_DIRECT_REALTIME · 东方财富实时直连'};
   let sessionDataset=null;
+  let sessionRealtimeQuote=null;
   let staticAttempted=false;
   const calendars=new Map();
 
@@ -73,6 +74,11 @@
     return `https://push2his.eastmoney.com/api/qt/stock/kline/get?${params}`;
   }
 
+  function eastmoneyRealtimeUrl(){
+    const params=new URLSearchParams({secid:'1.000852',fields:'f43,f57,f58,f60,f86,f169,f170',ut:'fa5fd1943c7b386f172d6893dbbd1d0c'});
+    return `https://push2.eastmoney.com/api/qt/stock/get?${params}`;
+  }
+
   async function fetchWithTimeout(url,options={}){
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
@@ -86,18 +92,31 @@
     return Core.parseEastmoneyResponse(await response.json());
   }
 
-  async function syncStatic(local,force=false){
+  async function fetchRealtime(){
+    const response=await fetchWithTimeout(eastmoneyRealtimeUrl(),{method:'GET',mode:'cors',cache:'no-store',credentials:'omit'});
+    if(!response.ok) throw new Error(`MANUAL_DIRECT_REALTIME_HTTP_${response.status}`);
+    return Core.parseEastmoneyRealtime(await response.json());
+  }
+
+  async function onlyCompleted(dataset,now=new Date()){
+    const expected=await Core.expectedLatestTradingDate(now,isTradingDay);
+    if(!expected) throw new Error('COMPLETED_MARKET_DATE_UNKNOWN');
+    return Core.completedDataset(dataset,expected);
+  }
+
+  async function syncStatic(local,force=false,now=new Date()){
     if(staticAttempted&&!force) return local;
     staticAttempted=true;
-    const incoming=await fetchStatic();
+    const incoming=await onlyCompleted(await fetchStatic(),now);
     const merged=Core.mergeDatasets(local,incoming);
     return persist(merged);
   }
 
-  async function resolveDataset(){
-    const local=sessionDataset||await readLocal();
+  async function resolveDataset(now=new Date()){
+    const stored=sessionDataset||await readLocal();
+    const local=stored?await onlyCompleted(stored,now):null;
     try{
-      const synced=await syncStatic(local);
+      const synced=await syncStatic(local,false,now);
       if(synced) return synced;
     }catch(error){
       // A failed or older static payload never replaces a valid local cache.
@@ -106,16 +125,17 @@
     throw new Error('NO_VALID_MARKET_DATA');
   }
 
-  async function refresh(){
-    const local=sessionDataset||await readLocal();
+  async function refreshDaily(now=new Date()){
+    const stored=sessionDataset||await readLocal();
+    const local=stored?await onlyCompleted(stored,now):null;
     try{
-      const direct=Core.mergeDatasets(local,await fetchDirect());
+      const direct=Core.mergeDatasets(local,await onlyCompleted(await fetchDirect(),now));
       const saved=await persist(direct);
       staticAttempted=true;
       return {outcome:'MANUAL_DIRECT',dataset:saved,message:`已更新至${Core.latestDate(saved)}收盘数据。`};
     }catch(directError){
       try{
-        const fallback=await syncStatic(local,true);
+        const fallback=await syncStatic(local,true,now);
         return {outcome:'GITHUB_AUTO',dataset:fallback,message:'手动直连失败，已使用GitHub自动行情。',error:directError.message};
       }catch(staticError){
         if(local){
@@ -127,14 +147,29 @@
     }
   }
 
+  async function refresh(options={}){
+    const now=options.now||new Date();
+    const [quoteResult,dailyResult]=await Promise.allSettled([fetchRealtime(),refreshDaily(now)]);
+    const realtime=quoteResult.status==='fulfilled'?(sessionRealtimeQuote=quoteResult.value):(sessionRealtimeQuote=null);
+    if(dailyResult.status==='rejected'){
+      return {outcome:'DAILY_UNAVAILABLE',dataset:null,message:realtime?'实时指数已更新，但没有可用的完整日K。':'实时指数和完整日K均不可用。',error:dailyResult.reason?.message,realtime:{available:!!realtime,quote:realtime,error:quoteResult.reason?.message}};
+    }
+    return {...dailyResult.value,realtime:{available:!!realtime,quote:realtime,error:quoteResult.status==='rejected'?quoteResult.reason?.message:null}};
+  }
+
+  function getRealtimeQuote(){return sessionRealtimeQuote?{available:true,quote:sessionRealtimeQuote}:{available:false,quote:null,reason:'尚未手动刷新实时指数'}}
+
   async function getThreeFactorStatus(options={}){
     let dataset;
-    try{dataset=await resolveDataset()}
+    const now=options.now||new Date();
+    try{dataset=await resolveDataset(now)}
     catch(error){return {available:false,freshness:'MISSING',latestStatus:'MISSING',decisionReady:false,candidateCent:null,reason:'没有可用的中证1000行情'}}
-    const metrics=Core.calculateMetrics(dataset);
-    const expected=await Core.expectedLatestTradingDate(options.now||new Date(),isTradingDay);
+    const expected=await Core.expectedLatestTradingDate(now,isTradingDay);
+    const completed=Core.completedDataset(dataset,expected);
+    const metrics=Core.calculateMetrics(completed);
+    const phase=await Core.marketPhase(now,isTradingDay);
     const distance=await Core.tradingDayDistance(metrics.asOfDate,expected,isTradingDay);
-    const status=Core.marketStatus(distance,metrics.asOfDate,expected);
+    const status=Core.marketStatus(distance,metrics.asOfDate,expected,phase.phase);
     const rawCandidate=window.StrategyCore.marketCandidateCent(metrics.drawdownBp,metrics.threeYearPositionBp,metrics.belowMA200);
     const recommendationDate=status.decisionReady?await Core.nextTradingDay(metrics.asOfDate,isTradingDay):null;
     return {
@@ -145,6 +180,7 @@
       rawCandidateCent:rawCandidate,
       expectedLatestTradingDate:expected,
       recommendationDate,
+      marketPhase:phase.phase,
       indexCode:Core.INDEX_CODE,
       indexName:Core.INDEX_NAME,
       source:dataset.source,
@@ -153,5 +189,5 @@
     };
   }
 
-  window.MarketProvider={getThreeFactorStatus,refresh,SOURCE_LABELS};
+  window.MarketProvider={getThreeFactorStatus,getRealtimeQuote,refresh,SOURCE_LABELS};
 })();

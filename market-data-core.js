@@ -5,6 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const INDEX_CODE='000852';
   const INDEX_NAME='中证1000';
+  const MARKET_CLOSE_MINUTES=15*60;
   const CUT_OFF_MINUTES=18*60+30;
 
   function isoDate(value){
@@ -50,6 +51,19 @@
       return {date:fields[0],close:Number(fields[2])};
     });
     return validateDataset({indexCode:INDEX_CODE,indexName:data.name,fetchedAt,items},'MANUAL_DIRECT');
+  }
+
+  function parseEastmoneyRealtime(raw,fetchedAt=new Date().toISOString()){
+    const data=raw?.data;
+    if(!data||String(data.f57)!==INDEX_CODE) throw new Error('UNEXPECTED_REALTIME_INDEX_CODE');
+    if(!String(data.f58||'').includes(INDEX_NAME)) throw new Error('UNEXPECTED_REALTIME_INDEX_NAME');
+    const current=Number(data.f43)/100,change=Number(data.f169)/100,changePercent=Number(data.f170)/100;
+    if(!Number.isFinite(current)||current<=0) throw new Error('INVALID_REALTIME_CURRENT');
+    if(!Number.isFinite(change)||!Number.isFinite(changePercent)) throw new Error('INVALID_REALTIME_CHANGE');
+    const marketTimestamp=Number(data.f86),marketTime=Number.isFinite(marketTimestamp)&&marketTimestamp>0?new Date(marketTimestamp*1000):null;
+    const clock=beijingClock(marketTime||fetchedAt);
+    return {indexCode:INDEX_CODE,indexName:data.f58,current,previousClose:Number(data.f60)/100,change,changePercent,
+      quoteDate:clock.date,quoteAt:marketTime?marketTime.toISOString():fetchedAt,fetchedAt,source:'MANUAL_DIRECT_REALTIME'};
   }
 
   function latestDate(dataset){
@@ -121,8 +135,24 @@
     const clock=beijingClock(now);
     const todayTrading=await isTradingDay(clock.date);
     if(todayTrading===null) return null;
-    if(todayTrading&&clock.minutes>=CUT_OFF_MINUTES) return clock.date;
+    if(todayTrading&&clock.minutes>=MARKET_CLOSE_MINUTES) return clock.date;
     return previousTradingDay(clock.date,isTradingDay);
+  }
+
+  async function marketPhase(now,isTradingDay){
+    const clock=beijingClock(now),todayTrading=await isTradingDay(clock.date);
+    if(todayTrading===null) return {clock,todayTrading,phase:'UNKNOWN'};
+    if(!todayTrading) return {clock,todayTrading,phase:'NON_TRADING'};
+    if(clock.minutes<9*60+30) return {clock,todayTrading,phase:'BEFORE_OPEN'};
+    if(clock.minutes<MARKET_CLOSE_MINUTES) return {clock,todayTrading,phase:'INTRADAY'};
+    if(clock.minutes<CUT_OFF_MINUTES) return {clock,todayTrading,phase:'WAITING_CLOSE'};
+    return {clock,todayTrading,phase:'AFTER_CUTOFF'};
+  }
+
+  function completedDataset(dataset,latestCompleteDate){
+    const valid=validateDataset(dataset,dataset.source);
+    if(!isoDate(latestCompleteDate)) throw new Error('INVALID_COMPLETED_CUTOFF');
+    return validateDataset({...valid,items:valid.items.filter(x=>x.date<=latestCompleteDate)},valid.source);
   }
 
   async function tradingDayDistance(fromDate,toDate,isTradingDay){
@@ -137,13 +167,14 @@
     return count;
   }
 
-  function marketStatus(distance,asOfDate,expectedDate){
-    if(!Number.isInteger(distance)||distance<0||!expectedDate) return {freshness:'UNKNOWN',latestStatus:'UNKNOWN',latestStatusText:'无法判断',decisionReady:false};
-    if(distance===0) return {freshness:'FRESH',latestStatus:'LATEST',latestStatusText:'行情最新',decisionReady:true};
-    if(distance<=3) return {freshness:'FRESH',latestStatus:'DELAYED',latestStatusText:`更新延迟${distance}个交易日`,decisionReady:false};
-    if(distance<=7) return {freshness:'AGING',latestStatus:'AGING',latestStatusText:`行情偏旧（${distance}个交易日）`,decisionReady:false};
-    return {freshness:'STALE',latestStatus:'STALE',latestStatusText:`行情已过期（${distance}个交易日）`,decisionReady:false};
+  function marketStatus(distance,asOfDate,expectedDate,phase='NON_TRADING'){
+    if(!Number.isInteger(distance)||distance<0||!expectedDate||phase==='UNKNOWN') return {freshness:'UNKNOWN',latestStatus:'MARKET_DATA_STALE',strategyStatus:'MARKET_DATA_STALE',latestStatusText:'无法可靠判断完整收盘状态',decisionReady:false};
+    if(distance>7) return {freshness:'STALE',latestStatus:'MARKET_DATA_STALE',strategyStatus:'MARKET_DATA_STALE',latestStatusText:`行情已过期（${distance}个交易日）`,decisionReady:false};
+    if(phase==='WAITING_CLOSE'&&distance===1) return {freshness:'FRESH',latestStatus:'WAITING_TODAY_CLOSE',strategyStatus:'WAITING_TODAY_CLOSE',latestStatusText:'等待今日完整收盘数据',decisionReady:true};
+    if(distance>0) return {freshness:distance<=3?'FRESH':'AGING',latestStatus:'MARKET_DATA_DELAYED',strategyStatus:'MARKET_DATA_DELAYED',latestStatusText:`行情更新延迟${distance}个交易日`,decisionReady:false};
+    if(phase==='BEFORE_OPEN'||phase==='INTRADAY') return {freshness:'FRESH',latestStatus:'VALID_USING_LAST_COMPLETE_CLOSE',strategyStatus:'VALID_USING_LAST_COMPLETE_CLOSE',latestStatusText:'沿用上一完整交易日收盘',decisionReady:true};
+    return {freshness:'FRESH',latestStatus:'VALID',strategyStatus:'VALID',latestStatusText:'最新完整收盘',decisionReady:true};
   }
 
-  return {INDEX_CODE,INDEX_NAME,CUT_OFF_MINUTES,normalizeItems,validateDataset,parseEastmoneyResponse,latestDate,mergeDatasets,calculateMetrics,addDays,beijingClock,previousTradingDay,nextTradingDay,expectedLatestTradingDate,tradingDayDistance,marketStatus};
+  return {INDEX_CODE,INDEX_NAME,MARKET_CLOSE_MINUTES,CUT_OFF_MINUTES,normalizeItems,validateDataset,parseEastmoneyResponse,parseEastmoneyRealtime,latestDate,mergeDatasets,calculateMetrics,addDays,beijingClock,previousTradingDay,nextTradingDay,expectedLatestTradingDate,marketPhase,completedDataset,tradingDayDistance,marketStatus};
 });
