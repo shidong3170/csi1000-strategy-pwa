@@ -1,4 +1,4 @@
-# 中证1000策略助手 V1.0.6｜GitHub Pages + GitHub Actions 版
+# 中证1000策略助手 V1.0.7｜GitHub Pages + GitHub Actions 版
 
 ## 架构
 
@@ -83,6 +83,7 @@ python scripts/update_market_data.py
 - 现金池；
 - 策略XIRR；
 - 策略版本和建议历史。
+- 初始化基线修订、投入事实修订和修改原因。
 
 GitHub Pages 只提供程序和公开市场数据。
 
@@ -90,6 +91,8 @@ GitHub Pages 只提供程序和公开市场数据。
 
 程序文件通过 GitHub Pages 发布；Service Worker负责离线缓存。
 数据升级不得清除 IndexedDB。
+
+V1.0.7 将本地数据库升级为 V3，只为旧投入记录补充执行状态、修订状态和计划日期字段；不会删除私人数据。事实修正会保留原值和逐字段修订日志，策略规则版本仍坚持“改未来、不改历史”。
 
 ## 注意
 

@@ -35,12 +35,13 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 .code{font-family:ui-monospace,monospace;background:#f4f5f7;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap}
 .recommendation-card{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}.recommendation-card:active{transform:scale(.995)}.recommendation-card:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}.recommend-hint{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:10px;color:var(--blue);font-size:12px;font-weight:600}.decision-summary{padding:12px;border-radius:12px;background:#edf3ff;color:#174ea6;margin-bottom:12px}.decision-list{display:flex;flex-direction:column;gap:8px}.decision-row{padding:10px;border:1px solid var(--line);border-radius:11px}.decision-row .row{align-items:flex-start}.decision-row b{font-size:14px}.decision-mark{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;font-weight:700}.decision-mark.pass{background:#e7f7ef;color:var(--green)}.decision-mark.fail{background:#f3f4f6;color:var(--muted)}.decision-mark.info{background:#edf3ff;color:var(--blue)}
 .metric-link{cursor:pointer;transition:background .12s ease,transform .12s ease}.metric-link:active{transform:scale(.985);background:#f7faff}.metric-link:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}.metric-link .view-hint{display:block;color:var(--blue);font-size:12px;margin-top:4px}.detail-hero b{display:block;font-size:26px;margin:6px 0}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.detail-cell{padding:10px;border:1px solid var(--line);border-radius:11px}.detail-cell b{display:block;margin-top:4px}.formula{padding:11px;border-radius:10px;background:#f4f7fc;font-family:ui-monospace,monospace;font-size:13px;overflow-wrap:anywhere}.back-button{padding:8px 10px;margin-bottom:10px}.signed-positive{color:var(--green)}.signed-negative{color:var(--red)}
+.status-line{display:flex;gap:6px;flex-wrap:wrap}.badge.pending{background:#edf3ff;color:var(--blue)}.badge.executed{background:#e7f7ef;color:var(--green)}.badge.not-executed{background:#fff3df;color:var(--orange)}.badge.blocked{background:#fde8e8;color:var(--red)}.badge.modified{background:#fff4c2;color:#805600;cursor:pointer}.audit-warning{margin-top:8px;color:var(--red);font-size:12px}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.action-row button{padding:8px 10px}
 </style>
 </head>
 <body>
 <header>
   <div class="title">中证1000策略助手</div>
-  <div class="small" id="headerSub">本地数据 · PWA V1.0.6</div>
+  <div class="small" id="headerSub">本地数据 · PWA V1.0.7</div>
 </header>
 
 <main>
@@ -73,7 +74,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
     </div>
 
     <div class="grid">
-      <div class="metric"><span class="small">当前在场本金</span><b id="mPrincipal">—</b><span id="mPosition" class="small">—</span></div>
+      <div id="principalCard" class="metric metric-link" role="button" tabindex="0" aria-label="查看当前在场本金计算依据"><span class="small">当前在场本金</span><b id="mPrincipal">—</b><span id="mPosition" class="small">—</span><span class="view-hint">查看依据 ›</span></div>
       <div class="metric"><span class="small">现金池</span><b id="mCashPool">—</b><span class="small">策略内部资金</span></div>
       <div id="fundValueCard" class="metric metric-link" role="button" tabindex="0" aria-label="查看基金市值依据"><span class="small">基金市值</span><b id="mMarketValue">—</b><span id="mCalFresh" class="small">—</span><span class="view-hint">查看依据 ›</span></div>
       <div class="metric"><span class="small">策略总资产</span><b id="mTotalAssets">—</b><span class="small">基金 + 现金池</span></div>
@@ -104,7 +105,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 
 <section id="page-records" class="hidden">
   <div class="card">
-    <div class="row"><h2>交易与补录</h2><button id="btnAddManual" class="secondary">+ 手动买入</button></div>
+    <div class="row"><h2>本金投入记录</h2><button id="btnAddManual" class="secondary">+ 手动买入</button></div>
+    <div class="small">计划金额保留当时策略事实；实际金额、资金来源与执行状态可修正，所有修改均留痕。</div>
     <div id="catchupNotice" class="notice hidden"></div>
     <div id="recordsList" class="list" style="margin-top:10px"></div>
   </div>
@@ -172,6 +174,9 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 
 <section id="page-more" class="hidden">
   <div class="card">
+    <div class="row"><div><h2>初始化基线</h2><div class="small">查看策略开始、历史期数和本金基线</div></div><button id="btnBaselineDetail" class="secondary">查看详情</button></div>
+  </div>
+  <div class="card">
     <h2>人工校准</h2>
     <div class="grid">
       <div><label>当前基金市值（元）</label><input id="cMarketValue" type="number" step="0.01"></div>
@@ -227,12 +232,27 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 </section>
 
 <section id="page-principal-history" class="hidden">
-  <button class="secondary back-button" onclick="App.showPage('fund-basis')">‹ 返回基金市值依据</button>
+  <button class="secondary back-button" onclick="App.showPage('principal-basis')">‹ 返回本金计算依据</button>
   <div class="card">
     <div class="row"><h2>本金变化记录</h2><b id="principalHistoryCurrent">—</b></div>
     <div class="small" style="margin-bottom:10px">仅展示有效记录：接管期初、定投执行和手动买入增加本金；止盈赎回按成本分摊减少本金。未执行或已撤销记录不计入。</div>
     <div id="principalHistoryList" class="list"></div>
   </div>
+</section>
+
+<section id="page-principal-basis" class="hidden">
+  <button class="secondary back-button" onclick="App.showPage('home')">‹ 返回首页</button>
+  <div id="principalBasisContent"></div>
+</section>
+
+<section id="page-baseline-detail" class="hidden">
+  <button class="secondary back-button" onclick="App.showPage('more')">‹ 返回更多</button>
+  <div id="baselineDetailContent"></div>
+</section>
+
+<section id="page-revision-history" class="hidden">
+  <button id="revisionBack" class="secondary back-button">‹ 返回</button>
+  <div class="card"><h2>修改历史</h2><div id="revisionHistoryList" class="list"></div></div>
 </section>
 </main>
 
@@ -250,8 +270,9 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 <script src="./market-data-core.js"></script>
 <script src="./market-provider.js"></script>
 <script src="./calibration-core.js"></script>
+<script src="./principal-revision-core.js"></script>
 <script>
-const DB_NAME='CSI1000StrategyDB', DB_VERSION=2;
+const DB_NAME='CSI1000StrategyDB', DB_VERSION=3;
 const STORES=['app_meta','initialization_baseline','strategy_versions','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
 
 const $=id=>document.getElementById(id);
@@ -276,6 +297,13 @@ class DB{
         // V2仅重建可再下载的公开行情缓存；私人投资数据所在的其他store保持原样。
         if(e.oldVersion<2&&db.objectStoreNames.contains('market_daily')) db.deleteObjectStore('market_daily');
         for(const s of STORES) if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:s==='market_daily'?'date':'id'});
+        if(e.oldVersion<3){
+          const migrate=(storeName,filter,mapper)=>{const store=e.target.transaction.objectStore(storeName),cursor=store.openCursor();cursor.onsuccess=event=>{const row=event.target.result;if(!row)return;const value=row.value;if(filter(value)){mapper(value);row.update(value)}row.continue()}};
+          migrate('investment_cycles',()=>true,value=>{value.executionStatus=value.executionStatus||value.status||'PENDING';value.revisionStatus=value.revisionStatus||'ORIGINAL';value.plannedDate=value.plannedDate||value.scheduledDate});
+          migrate('manual_trades',value=>value.type==='MANUAL_BUY',value=>{value.executionStatus=value.executionStatus||'EXECUTED';value.revisionStatus=value.revisionStatus||'ORIGINAL';value.actualAmountCent=value.actualAmountCent??value.amountCent??0});
+          migrate('initialization_baseline',()=>true,value=>{value.revisionStatus=value.revisionStatus||'ORIGINAL'});
+          migrate('app_meta',()=>true,value=>{value.schemaVersion=3});
+        }
      };
      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
    }); return this.db;
@@ -317,13 +345,13 @@ const Calc={
  async cashPool(){
    return (await DB.all('cash_pool_ledger')).filter(x=>!x.voided).reduce((a,x)=>a+x.amountCent,0);
  },
+ async principalBreakdown(){
+   const baseline=await DB.get('initialization_baseline','baseline');
+   if(!baseline)return {currentPrincipalCent:0,historicalExternalInvestmentCent:0,cashPoolCent:0,effectiveCycleCount:0};
+   return PrincipalRevisionCore.principalBreakdown(baseline,await DB.all('investment_cycles'),await DB.all('manual_trades'),await DB.all('external_cashflows'),await DB.all('cash_pool_ledger'));
+ },
  async principal(){
-   const b=await DB.get('initialization_baseline','baseline');
-   if(!b)return 0;
-   const cycles=(await DB.all('investment_cycles')).filter(x=>!x.voided&&x.status==='EXECUTED').reduce((a,x)=>a+x.actualAmountCent,0);
-   const buys=(await DB.all('manual_trades')).filter(x=>!x.voided&&x.type==='MANUAL_BUY').reduce((a,x)=>a+x.amountCent,0);
-   const exits=(await DB.all('manual_trades')).filter(x=>!x.voided&&x.type==='MANUAL_REDEEM').reduce((a,x)=>a+(x.exitedPrincipalCent||0),0);
-   return b.takeoverInMarketPrincipalCent+cycles+buys-exits;
+   return (await this.principalBreakdown()).currentPrincipalCent;
  },
  async latestCalibration(){
    return CalibrationCore.latestValidCalibration(await DB.all('calibration_snapshots'));
@@ -333,14 +361,14 @@ const Calc={
  },
  async metrics(){
    const strategy=(await DB.all('strategy_versions')).filter(x=>x.effectiveFrom<=today()&&(!x.effectiveTo||x.effectiveTo>=today())).sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
-   const principal=await this.principal(), cash=await this.cashPool(), cal=await this.latestCalibration();
+   const breakdown=await this.principalBreakdown(),principal=breakdown.currentPrincipalCent,cash=breakdown.cashPoolCent,cal=await this.latestCalibration();
    const hard=strategy?this.annualHardLimit(strategy):0, remaining=Math.max(0,hard-principal);
    const positionBp=strategy?StrategyCore.principalPositionBp(principal,strategy.totalInvestmentBaseCent):0;
    const fund=cal?cal.fundMarketValueCent:0,total=fund+cash;
    const xflows=(await DB.all('external_cashflows')).filter(x=>!x.voided).sort((a,b)=>a.date.localeCompare(b.date));
    const xirr=cal?this.xirr(xflows,total,cal.snapshotDate):null;
    const calDays=cal?daysBetween(cal.snapshotDate,today()):9999;
-   return {strategy,principal,cash,cal,hard,remaining,positionBp,fund,total,xirr,calDays};
+   return {strategy,principal,cash,cal,hard,remaining,positionBp,fund,total,xirr,calDays,breakdown};
  }
 };
 
@@ -448,6 +476,9 @@ const App={
     $('recommendCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.openRecommendationDetails()}};
     $('fundValueCard').onclick=()=>this.showPage('fund-basis');
     $('fundValueCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.showPage('fund-basis')}};
+    $('principalCard').onclick=()=>this.showPage('principal-basis');
+    $('principalCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.showPage('principal-basis')}};
+    $('btnBaselineDetail').onclick=()=>this.showPage('baseline-detail');
    if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
    if(navigator.storage?.persist) navigator.storage.persist().catch(()=>{});
    await this.refreshAll();
@@ -460,7 +491,9 @@ const App={
    if(name==='analysis')this.renderAnalysis();
    if(name==='fund-basis')this.renderFundBasis();
    if(name==='calibration-history')this.renderCalibrationHistory();
-   if(name==='principal-history')this.renderPrincipalHistory();
+    if(name==='principal-history')this.renderPrincipalHistory();
+    if(name==='principal-basis')this.renderPrincipalBasis();
+    if(name==='baseline-detail')this.renderBaselineDetail();
  },
  async initialize(){
    const mv=cents($('initMarketValue').value), shares=Number($('initShares').value);
@@ -469,8 +502,8 @@ const App={
    if(principal<=0||cycles<0||!start){alert('请检查开始日期、历史期数和历史本金');return}
    const now=new Date().toISOString(),snapshotId='cal-'+Date.now();
    await DB.atomic(['app_meta','initialization_baseline','strategy_versions','external_cashflows','calibration_snapshots'],tx=>{
-     tx.objectStore('app_meta').put({id:'app',initialized:true,installedAt:now,takeoverDate:takeover,schemaVersion:1});
-     tx.objectStore('initialization_baseline').put({id:'baseline',strategyStartDate:start,historicalExecutedCycles:cycles,historicalInvestedPrincipalCent:principal,takeoverDate:takeover,takeoverInMarketPrincipalCent:principal,createdAt:now,locked:true});
+     tx.objectStore('app_meta').put({id:'app',initialized:true,installedAt:now,takeoverDate:takeover,schemaVersion:3});
+     tx.objectStore('initialization_baseline').put({id:'baseline',strategyStartDate:start,historicalExecutedCycles:cycles,historicalInvestedPrincipalCent:principal,takeoverDate:takeover,takeoverInMarketPrincipalCent:principal,revisionStatus:'ORIGINAL',createdAt:now,locked:true});
      tx.objectStore('strategy_versions').put({id:'strategy-v1.0',version:'1.0',effectiveFrom:takeover,isCurrent:true,totalInvestmentBaseCent:15000000,targetPositionMinBp:1500,targetPositionMaxBp:1600,warningPositionBp:1800,slowdownPositionBp:1900,baseHardLimitBp:2000,baseHardLimitCent:3000000,annualHardLimitIncrementCent:600000,baseRecurringAmountCent:10000,targetXirrBp:600,minHoldingYears:3,maxHoldingYears:5,createdAt:now,changeReason:'V1.0 Frozen 初始策略'});
      tx.objectStore('external_cashflows').put({id:'opening',date:takeover,type:'TAKEOVER_OPENING',amountCent:-principal,sourceRecordId:'baseline'});
      tx.objectStore('calibration_snapshots').put({id:snapshotId,snapshotDate:takeover,snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(shares*1e6),impliedNavScaled:Math.round(mv/100/shares*1e6),inMarketPrincipalCent:principal,cashPoolBalanceCent:0,strategyTotalAssetsCent:mv,source:'INITIALIZATION',createdAt:now});
@@ -485,7 +518,7 @@ const App={
    $('mPrincipal').textContent=yuan(m.principal);$('mPosition').textContent='本金仓位 '+pctBp(m.positionBp);
    $('mCashPool').textContent=yuan(m.cash);$('mMarketValue').textContent=m.cal?yuan(m.fund):'—';$('mTotalAssets').textContent=m.cal?yuan(m.total):'—';
    $('mHardLimit').textContent=yuan(m.hard);$('mRemaining').textContent=yuan(m.remaining);
-   $('mCycles').textContent=((await DB.get('initialization_baseline','baseline')).historicalExecutedCycles+(await DB.all('investment_cycles')).filter(x=>x.status==='EXECUTED'&&!x.voided).length)+'期';
+    $('mCycles').textContent=m.breakdown.effectiveCycleCount+'期';
    $('mXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';
    $('mCalFresh').textContent=!m.cal?'待人工校准':m.calDays<=7?'校准数据新鲜':m.calDays<=14?`已${m.calDays}天未校准`:'数据已过期';
    $('positionBar').style.width=Math.min(100,m.positionBp/20)+'%';
@@ -506,18 +539,22 @@ const App={
  },
  async renderTodos(m){
    const list=[];
-   const catchup=await this.catchupDates();
-   if(catchup.length) list.push({t:`待补录 ${catchup.length} 期`,c:'orange',act:'去补录',fn:()=>this.openCatchup(catchup)});
+    const catchup=await this.catchupDates();
+    if(catchup.length) list.push({t:`待补录 ${catchup.length} 期`,c:'orange',act:'去补录',fn:()=>this.openCatchup(catchup)});
+    const pending=(await DB.all('investment_cycles')).filter(x=>!x.voided&&PrincipalRevisionCore.statusOf(x)==='PENDING');
+    if(pending.length) list.push({t:`待执行确认 ${pending.length} 期`,c:'orange',act:'查看记录',fn:()=>this.showPage('records')});
    if(this.calendarUnavailableYears?.length) list.push({t:`缺少 ${this.calendarUnavailableYears.join('、')} 年交易日历，未自动补录`,c:'red'});
-   if(m.calDays>7) list.push({t:m.calDays>14?'人工校准已过期':'建议进行本周人工校准',c:m.calDays>14?'red':'orange',act:'去校准',fn:()=>this.showPage('more')});
-   if(m.positionBp>=1800) list.push({t:`本金仓位 ${pctBp(m.positionBp)} 已进入警戒`,c:'orange'});
+    if(m.calDays>7) list.push({t:m.calDays>14?'人工校准已过期':'建议进行本周人工校准',c:m.calDays>14?'red':'orange',act:'去校准',fn:()=>this.showPage('more')});
+    if(m.positionBp>=1800) list.push({t:`本金仓位 ${pctBp(m.positionBp)} 已进入警戒`,c:'orange'});
+    const baseline=await DB.get('initialization_baseline','baseline'),audited=[baseline,...await DB.all('investment_cycles'),...await DB.all('manual_trades')].filter(x=>x?.auditFlags?.includes('HISTORICAL_HARD_LIMIT_CONFLICT'));
+    if(audited.length) list.push({t:`${audited.length} 条历史事实与当时策略上限冲突，请审计`,c:'red',act:'查看记录',fn:()=>this.showPage('records')});
    const box=$('todoList');box.innerHTML='';
    if(!list.length)box.innerHTML='<div class="notice ok">当前无待办</div>';
    for(const x of list){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><span>${x.t}</span>${x.act?`<button class="secondary">${x.act}</button>`:''}</div>`;if(x.act)d.querySelector('button').onclick=x.fn;box.appendChild(d)}
  },
  async catchupDates(){
    const meta=await DB.get('app_meta','app'); if(!meta)return[];
-   const cycles=await DB.all('investment_cycles'), done=new Set(cycles.map(x=>x.scheduledDate));
+    const cycles=await DB.all('investment_cycles'),done=new Set(cycles.flatMap(x=>[x.scheduledDate,x.plannedDate].filter(Boolean)));
    const out=[],missingYears=new Set(); let d=new Date(meta.takeoverDate+'T00:00:00'), now=new Date(today()+'T00:00:00');
    d.setDate(d.getDate()+1);
    while(d<=now){
@@ -535,54 +572,85 @@ const App={
    this.calendarUnavailableYears=[...missingYears];
    return out;
  },
- async openCatchup(dates){
-   $('modalSheet').innerHTML=`<h2>补录定投</h2><div class="notice ok">以下日期来自本地年度A股交易日历；缺少可靠日历的年度不会自动生成记录。</div><div id="catchRows"></div><button id="saveCatch">确认补录</button><button class="secondary" onclick="App.closeModal()">稍后</button>`;
-   const rows=$('catchRows');
-   for(const dt of dates){const s=await this.strategyForDate(dt);if(!s)continue;const div=document.createElement('div');div.className='item';div.innerHTML=`<b>${dt}</b><label>实际投入金额（元）</label><input data-date="${dt}" type="number" value="${s.baseRecurringAmountCent/100}"><div class="small">计划金额 ${s.baseRecurringAmountCent/100} 元，可直接改成600等实际金额。</div>`;rows.appendChild(div)}
-   $('saveCatch').onclick=async()=>{for(const inp of rows.querySelectorAll('input')){const s=await this.strategyForDate(inp.dataset.date);if(s)await this.saveCycle(inp.dataset.date,cents(inp.value),s)}this.closeModal();await this.refreshAll()};
-   $('modal').classList.remove('hidden');
- },
- async saveCycle(date,amount,s){
-   const m=await Calc.metrics(), actual=Math.min(amount,m.remaining);
-   const cashUse=Math.min(actual,m.cash), ext=actual-cashUse;
-   const id='cycle-'+date,now=new Date().toISOString();
-   await DB.atomic(['investment_cycles','cash_pool_ledger','external_cashflows'],tx=>{
-     tx.objectStore('investment_cycles').put({id,scheduledDate:date,strategyVersionId:s.id,plannedAmountCent:s.baseRecurringAmountCent,actualAmountCent:actual,scheduledBaseAmountCent:s.baseRecurringAmountCent,manualExtraAmountCent:Math.max(0,actual-s.baseRecurringAmountCent),cashPoolFundingCent:cashUse,externalFundingCent:ext,status:actual>0?'EXECUTED':'BLOCKED_HARD_LIMIT',source:'AUTO_CATCHUP',countsAsCycle:actual>0,processed:true,createdAt:now});
+  async openCatchup(dates){
+    $('modalSheet').innerHTML=`<h2>补录定投</h2><div class="notice ok">以下日期先生成待执行计划；确认后才计入本金、期数、现金池和XIRR。</div><div id="catchRows"></div><button id="saveCatch">确认处理</button><button class="secondary" onclick="App.closeModal()">稍后</button>`;
+    const rows=$('catchRows');
+    for(const dt of dates){const s=await this.strategyForDate(dt);if(!s)continue;const record=await this.ensurePendingCycle(dt,s),blocked=PrincipalRevisionCore.statusOf(record)==='BLOCKED_HARD_LIMIT',div=document.createElement('div');div.className='item';div.dataset.date=dt;div.innerHTML=`<b>${dt}</b><label>实际投入金额（元）</label><input class="catch-amount" type="number" value="${s.baseRecurringAmountCent/100}" ${blocked?'disabled':''}><label>执行状态</label><select class="catch-status" ${blocked?'disabled':''}><option value="EXECUTED">已执行</option><option value="NOT_EXECUTED">未执行</option><option value="PENDING">稍后确认</option>${blocked?'<option value="BLOCKED_HARD_LIMIT" selected>因硬上限停止</option>':''}</select><div class="small">计划金额 ${s.baseRecurringAmountCent/100} 元保持不变；实际金额可按成交事实填写。</div>`;rows.appendChild(div)}
+    $('saveCatch').onclick=async()=>{try{for(const row of rows.querySelectorAll('.item')){const s=await this.strategyForDate(row.dataset.date);if(s)await this.saveCycle(row.dataset.date,cents(row.querySelector('.catch-amount').value),s,row.querySelector('.catch-status').value)}this.closeModal();await this.refreshAll()}catch(error){alert(this.businessError(error))}};
+    $('modal').classList.remove('hidden');
+  },
+  async ensurePendingCycle(date,s){
+    const id='cycle-'+date,existing=await DB.get('investment_cycles',id);if(existing)return existing;
+    const m=await Calc.metrics(),now=new Date().toISOString(),status=m.remaining<=0?'BLOCKED_HARD_LIMIT':'PENDING';
+    const record={id,scheduledDate:date,plannedDate:date,strategyVersionId:s.id,plannedAmountCent:s.baseRecurringAmountCent,actualAmountCent:0,scheduledBaseAmountCent:s.baseRecurringAmountCent,manualExtraAmountCent:0,cashPoolFundingCent:0,externalFundingCent:0,executionStatus:status,status,revisionStatus:'ORIGINAL',source:'AUTO_CATCHUP',countsAsCycle:false,processed:true,createdAt:now};
+    await DB.put('investment_cycles',record);return record;
+  },
+  async saveCycle(date,amount,s,status='EXECUTED'){
+    const id='cycle-'+date,record=await DB.get('investment_cycles',id)||await this.ensurePendingCycle(date,s),m=await Calc.metrics(),now=new Date().toISOString();
+    if(status==='PENDING'||status==='BLOCKED_HARD_LIMIT')return record;
+    const actual=status==='EXECUTED'?amount:0;if(status==='EXECUTED'&&(actual<=0||actual>m.remaining))throw new Error('HARD_LIMIT_EXCEEDED');
+    const cashUse=status==='EXECUTED'?Math.min(actual,m.cash):0,ext=actual-cashUse;
+    PrincipalRevisionCore.validateFunding({executionStatus:status,actualAmountCent:actual,cashPoolFundingCent:cashUse,externalFundingCent:ext});
+    const next={...record,actualAmountCent:actual,manualExtraAmountCent:Math.max(0,actual-record.plannedAmountCent),cashPoolFundingCent:cashUse,externalFundingCent:ext,executionStatus:status,status,countsAsCycle:status==='EXECUTED',processed:true,confirmedAt:now};
+    await DB.atomic(['investment_cycles','cash_pool_ledger','external_cashflows'],tx=>{
+      tx.objectStore('investment_cycles').put(next);
      if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:date,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});
      if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now});
-   });
- },
+    });
+    return next;
+  },
  closeModal(){$('modal').classList.add('hidden')},
- async renderRecords(){
-   if(!await this.initialized())return;
-   const dates=await this.catchupDates();
-   $('catchupNotice').classList.toggle('hidden',!dates.length);
-   if(dates.length){$('catchupNotice').innerHTML=`检测到 ${dates.length} 期待补录。 <button id="quickCatch">打开补录</button>`;$('quickCatch').onclick=()=>this.openCatchup(dates)}
-   const cycles=(await DB.all('investment_cycles')).sort((a,b)=>b.scheduledDate.localeCompare(a.scheduledDate));
-   const trades=(await DB.all('manual_trades')).sort((a,b)=>b.tradeDate.localeCompare(a.tradeDate));
-   const box=$('recordsList');box.innerHTML='';
-   for(const x of cycles){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><b>${x.scheduledDate}</b><span class="badge ${x.status==='EXECUTED'?'green':'orange'}">${x.status}</span></div><div>实际 ${yuan(x.actualAmountCent)} · 现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)}</div><div class="meta">计划 ${yuan(x.plannedAmountCent)}；手动追加 ${yuan(x.manualExtraAmountCent||0)}</div>${x.status==='EXECUTED'?'<button class="secondary mark-no">标记未执行</button>':''}`;if(x.status==='EXECUTED')d.querySelector('.mark-no').onclick=()=>this.markNotExecuted(x);box.appendChild(d)}
-   for(const x of trades){const d=document.createElement('div');d.className='item';d.innerHTML=`<b>${x.tradeDate} · ${x.type}</b><div>${yuan(x.amountCent)}</div>`;box.appendChild(d)}
-   if(!cycles.length&&!trades.length)box.innerHTML='<div class="small">接管后暂无交易记录</div>';
- },
- async markNotExecuted(x){
-   if(!confirm('标记为未执行后，将撤销该期本金、现金池使用和外部XIRR现金流。继续？'))return;
-   const ce=x.cashPoolFundingCent?await DB.get('cash_pool_ledger','cash-'+x.id):null;
-   const ef=x.externalFundingCent?await DB.get('external_cashflows','ext-'+x.id):null;
-   const before={status:x.status,actualAmountCent:x.actualAmountCent,cashPoolFundingCent:x.cashPoolFundingCent,externalFundingCent:x.externalFundingCent};
-   const now=new Date().toISOString();
-   x.status='NOT_EXECUTED';x.actualAmountCent=0;x.cashPoolFundingCent=0;x.externalFundingCent=0;x.countsAsCycle=false;x.updatedAt=now;
-   await DB.atomic(['investment_cycles','cash_pool_ledger','external_cashflows','record_revisions'],tx=>{
-     if(ce){ce.voided=true;ce.voidedAt=now;tx.objectStore('cash_pool_ledger').put(ce)}
-     if(ef){ef.voided=true;ef.voidedAt=now;tx.objectStore('external_cashflows').put(ef)}
-     tx.objectStore('investment_cycles').put(x);
-     tx.objectStore('record_revisions').put({id:'rev-'+Date.now(),entityType:'investment_cycle',entityId:x.id,changedAt:now,changeType:'STATUS_CHANGE',before,after:{status:x.status,actualAmountCent:0,cashPoolFundingCent:0,externalFundingCent:0},reason:'用户确认实际未执行'});
-   });
-   await this.renderRecords();await this.refreshAll();
- },
- openManualBuy(){
-   $('modalSheet').innerHTML=`<h2>新增手动买入</h2><label>日期</label><input id="mbDate" type="date" value="${today()}"><label>金额（元）</label><input id="mbAmount" type="number"><button id="mbSave">保存</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
-   $('mbSave').onclick=async()=>{const amount=cents($('mbAmount').value),m=await Calc.metrics();if(amount<=0)return;const actual=Math.min(amount,m.remaining);if(actual<=0){alert('已达到当年度硬上限，不能新增买入');return}const cashUse=Math.min(actual,m.cash),ext=actual-cashUse,id='manual-'+Date.now(),dt=$('mbDate').value,now=new Date().toISOString();await DB.atomic(['manual_trades','cash_pool_ledger','external_cashflows'],tx=>{tx.objectStore('manual_trades').put({id,tradeDate:dt,type:'MANUAL_BUY',amountCent:actual,cashPoolFundingCent:cashUse,externalFundingCent:ext,affectsCycleCount:false,createdAt:now});if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date:dt,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now})});this.closeModal();await this.renderRecords();await this.refreshAll()};
+  async renderRecords(){
+    if(!await this.initialized())return;
+    const dates=await this.catchupDates();
+    $('catchupNotice').classList.toggle('hidden',!dates.length);
+    if(dates.length){$('catchupNotice').innerHTML=`检测到 ${dates.length} 期待补录。 <button id="quickCatch">打开补录</button>`;$('quickCatch').onclick=()=>this.openCatchup(dates)}
+    const cycles=(await DB.all('investment_cycles')).sort((a,b)=>b.scheduledDate.localeCompare(a.scheduledDate));
+    const trades=(await DB.all('manual_trades')).sort((a,b)=>b.tradeDate.localeCompare(a.tradeDate));
+    const box=$('recordsList');box.innerHTML='';
+    for(const x of cycles){const status=PrincipalRevisionCore.statusOf(x),revision=PrincipalRevisionCore.revisionStatusOf(x),d=document.createElement('div'),actual=status==='PENDING'?'—':yuan(x.actualAmountCent);d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(x.scheduledDate)} · 定投</b><span class="status-line"><span class="badge ${this.executionClass(status)}">${this.executionLabel(status)}</span><span class="badge ${revision==='MODIFIED'?'modified':''} revision-link">${this.revisionLabel(revision)}</span></span></div><div>计划 ${yuan(x.plannedAmountCent)} · 实际 ${actual}</div><div class="meta">现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)} · 手动追加 ${yuan(x.manualExtraAmountCent||0)}</div>${x.auditFlags?.length?'<div class="audit-warning">历史事实与当时策略上限冲突</div>':''}<div class="action-row"><button class="secondary edit-record">修正记录</button></div>`;d.querySelector('.edit-record').onclick=()=>this.openRecordEdit(x,'investment_cycle');d.querySelector('.revision-link').onclick=()=>revision==='MODIFIED'&&this.renderRevisionHistory('investment_cycle',x.id,'records');box.appendChild(d)}
+    for(const x of trades){const d=document.createElement('div');d.className='item';if(x.type==='MANUAL_BUY'){const status=PrincipalRevisionCore.statusOf(x),revision=PrincipalRevisionCore.revisionStatusOf(x),actual=status==='PENDING'?'—':yuan(PrincipalRevisionCore.actualOf(x));d.innerHTML=`<div class="row"><b>${escapeHtml(x.tradeDate)} · 手动买入</b><span class="status-line"><span class="badge ${this.executionClass(status)}">${this.executionLabel(status)}</span><span class="badge ${revision==='MODIFIED'?'modified':''} revision-link">${this.revisionLabel(revision)}</span></span></div><div>计划 ${yuan(0)} · 实际 ${actual}</div><div class="meta">现金池 ${yuan(x.cashPoolFundingCent)} · 外部 ${yuan(x.externalFundingCent)}</div>${x.auditFlags?.length?'<div class="audit-warning">历史事实与当时策略上限冲突</div>':''}<div class="action-row"><button class="secondary edit-record">修正记录</button></div>`;d.querySelector('.edit-record').onclick=()=>this.openRecordEdit(x,'manual_trade');d.querySelector('.revision-link').onclick=()=>revision==='MODIFIED'&&this.renderRevisionHistory('manual_trade',x.id,'records')}else d.innerHTML=`<b>${escapeHtml(x.tradeDate)} · 止盈赎回</b><div>${yuan(x.amountCent)}</div><div class="meta">退出对应本金 ${yuan(x.exitedPrincipalCent||0)}</div>`;box.appendChild(d)}
+    if(!cycles.length&&!trades.length)box.innerHTML='<div class="small">接管后暂无交易记录</div>';
+  },
+  executionLabel(status){return PrincipalRevisionCore.EXECUTION_LABELS[status]||status||'未知'},
+  revisionLabel(status){return PrincipalRevisionCore.REVISION_LABELS[status]||status||'原始'},
+  executionClass(status){return ({PENDING:'pending',EXECUTED:'executed',NOT_EXECUTED:'not-executed',BLOCKED_HARD_LIMIT:'blocked'})[status]||''},
+  businessError(error){return ({FUNDING_SUM_MISMATCH:'实际投入必须等于现金池出资与外部资金之和',NON_EXECUTED_MUST_BE_ZERO:'非已执行记录的实际金额和资金来源必须为0',EXECUTED_AMOUNT_REQUIRED:'已执行记录必须填写实际投入金额',CASH_POOL_WOULD_BE_NEGATIVE:'修正后现金池将为负数，不能保存',PRINCIPAL_WOULD_BE_NEGATIVE:'修正后在场本金将为负数，不能保存',HARD_LIMIT_EXCEEDED:'该执行会突破当年度硬上限，不能保存',CHANGE_REASON_REQUIRED:'请填写修改原因',INVALID_RECORD_DATE:'请填写有效日期'})[error.message]||`保存失败：${error.message}`},
+  async openRecordEdit(record,entityType){
+    const status=PrincipalRevisionCore.statusOf(record),actual=PrincipalRevisionCore.actualOf(record),date=PrincipalRevisionCore.recordDate(record);
+    $('modalSheet').innerHTML=`<h2>修正投入记录</h2><div class="notice">计划金额 ${yuan(record.plannedAmountCent||0)} 属于当时策略事实，不可修改。</div><label>日期</label><input id="erDate" type="date" value="${escapeHtml(date)}"><label>实际投入金额（元）</label><input id="erActual" type="number" step="0.01" value="${actual/100}"><div class="grid"><div><label>现金池出资（元）</label><input id="erCash" type="number" step="0.01" value="${Number(record.cashPoolFundingCent||0)/100}"></div><div><label>外部资金（元）</label><input id="erExternal" type="number" step="0.01" value="${Number(record.externalFundingCent||0)/100}"></div></div><label>执行状态</label><select id="erStatus">${Object.entries(PrincipalRevisionCore.EXECUTION_LABELS).filter(([value])=>value!=='BLOCKED_HARD_LIMIT'||status==='BLOCKED_HARD_LIMIT').map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><label>备注</label><textarea id="erNotes" rows="2">${escapeHtml(record.notes||'')}</textarea><label>修改原因（必填）</label><textarea id="erReason" rows="2" placeholder="例如：与实际成交记录核对后修正"></textarea><button id="erSave">保存修正</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
+    $('erStatus').onchange=()=>{if($('erStatus').value!=='EXECUTED'){$('erActual').value='0';$('erCash').value='0';$('erExternal').value='0'}};
+    $('erSave').onclick=()=>this.saveRecordEdit(record,entityType);
+    $('modal').classList.remove('hidden');
+  },
+  async saveRecordEdit(before,entityType){
+    const reason=$('erReason').value.trim();if(!reason){alert('请填写修改原因');return}
+    const status=$('erStatus').value,actual=status==='EXECUTED'?cents($('erActual').value):0,cash=status==='EXECUTED'?cents($('erCash').value):0,external=status==='EXECUTED'?cents($('erExternal').value):0,date=$('erDate').value,m=await Calc.metrics();
+    const changes={executionStatus:status,actualAmountCent:actual,cashPoolFundingCent:cash,externalFundingCent:external,notes:$('erNotes').value};
+    if(entityType==='investment_cycle')changes.scheduledDate=date;else{changes.tradeDate=date;changes.amountCent=actual}
+    try{
+      const applicableStrategy=await this.strategyForDate(date)||m.strategy,hard=applicableStrategy?Calc.annualHardLimit(applicableStrategy,date):m.hard,{after,auditConflict}=PrincipalRevisionCore.prepareRecordRevision(before,changes,{currentPrincipalCent:m.principal,currentCashPoolCent:m.cash,hardLimitCent:hard,today:today()}),now=new Date().toISOString();
+      after.originalValues=before.originalValues||{scheduledDate:before.scheduledDate??null,tradeDate:before.tradeDate??null,actualAmountCent:before.actualAmountCent??null,amountCent:before.amountCent??null,cashPoolFundingCent:before.cashPoolFundingCent??0,externalFundingCent:before.externalFundingCent??0,executionStatus:PrincipalRevisionCore.statusOf(before),notes:before.notes??''};after.modifiedAt=now;
+      const revisions=PrincipalRevisionCore.revisionEntries(entityType,before.id,before,after,reason,now,'USER_EDIT');if(!revisions.length){alert('没有检测到变化');return}
+      const recordStore=entityType==='investment_cycle'?'investment_cycles':'manual_trades',recordDate=PrincipalRevisionCore.recordDate(after),cashId='cash-'+before.id,extId='ext-'+before.id;
+      await DB.atomic([recordStore,'cash_pool_ledger','external_cashflows','record_revisions'],tx=>{
+        tx.objectStore(recordStore).put(after);
+        tx.objectStore('cash_pool_ledger').put({id:cashId,eventDate:recordDate,type:'REINVEST_OUT',amountCent:-after.cashPoolFundingCent,relatedRecordId:before.id,affectsStrategyXirr:false,voided:after.cashPoolFundingCent===0,updatedAt:now,createdAt:before.createdAt||now});
+        tx.objectStore('external_cashflows').put({id:extId,date:recordDate,type:'EXTERNAL_CONTRIBUTION',amountCent:-after.externalFundingCent,sourceRecordId:before.id,voided:after.externalFundingCent===0,updatedAt:now,createdAt:before.createdAt||now});
+        for(const revision of revisions)tx.objectStore('record_revisions').put(revision);
+      });
+      this.closeModal();await this.renderRecords();await this.refreshAll();if(auditConflict)alert('修正已保存，并标记“历史事实与当时策略上限冲突”。');
+    }catch(error){alert(this.businessError(error))}
+  },
+  async renderRevisionHistory(entityType,entityId,returnPage='records'){
+    const rows=(await DB.all('record_revisions')).filter(x=>x.entityType===entityType&&x.entityId===entityId).sort((a,b)=>b.changedAt.localeCompare(a.changedAt)),box=$('revisionHistoryList');box.innerHTML='';
+    for(const revision of rows){const d=document.createElement('div');d.className='item';const before=this.revisionValue(revision.fieldName,revision.before),after=this.revisionValue(revision.fieldName,revision.after);d.innerHTML=`<div class="row"><b>${escapeHtml(revision.fieldLabel||revision.fieldName||revision.changeType)}</b><span class="small">${escapeHtml(this.formatMarketTime(revision.changedAt))}</span></div><div>${escapeHtml(before)} → ${escapeHtml(after)}</div><div class="meta">原因：${escapeHtml(revision.changeReason||revision.reason||'未记录')} · 来源：${escapeHtml(revision.source||'历史记录')}</div>`;box.appendChild(d)}
+    if(!rows.length)box.innerHTML='<div class="notice">暂无修改历史</div>';$('revisionBack').onclick=()=>this.showPage(returnPage);this.showPage('revision-history');
+  },
+  revisionValue(field,value){if(['actualAmountCent','amountCent','cashPoolFundingCent','externalFundingCent','historicalInvestedPrincipalCent','takeoverInMarketPrincipalCent'].includes(field))return yuan(Number(value)||0);if(field==='executionStatus')return this.executionLabel(value);if(value&&typeof value==='object')return JSON.stringify(value);return String(value??'—')},
+  openManualBuy(){
+    $('modalSheet').innerHTML=`<h2>新增手动买入</h2><label>日期</label><input id="mbDate" type="date" value="${today()}"><label>金额（元）</label><input id="mbAmount" type="number"><button id="mbSave">保存</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
+    $('mbSave').onclick=async()=>{const amount=cents($('mbAmount').value),m=await Calc.metrics();if(amount<=0)return;if(amount>m.remaining){alert('该买入将突破当年度硬上限，不能保存');return}const actual=amount,cashUse=Math.min(actual,m.cash),ext=actual-cashUse,id='manual-'+Date.now(),dt=$('mbDate').value,now=new Date().toISOString();await DB.atomic(['manual_trades','cash_pool_ledger','external_cashflows'],tx=>{tx.objectStore('manual_trades').put({id,tradeDate:dt,type:'MANUAL_BUY',plannedAmountCent:0,amountCent:actual,actualAmountCent:actual,cashPoolFundingCent:cashUse,externalFundingCent:ext,executionStatus:'EXECUTED',status:'EXECUTED',revisionStatus:'ORIGINAL',affectsCycleCount:false,createdAt:now});if(cashUse)tx.objectStore('cash_pool_ledger').put({id:'cash-'+id,eventDate:dt,type:'REINVEST_OUT',amountCent:-cashUse,relatedRecordId:id,affectsStrategyXirr:false,createdAt:now});if(ext)tx.objectStore('external_cashflows').put({id:'ext-'+id,date:dt,type:'EXTERNAL_CONTRIBUTION',amountCent:-ext,sourceRecordId:id,createdAt:now})});this.closeModal();await this.renderRecords();await this.refreshAll()};
    $('modal').classList.remove('hidden');
  },
  previewNav(){const mv=Number($('cMarketValue').value),sh=Number($('cShares').value);$('cImplied').textContent=mv&&sh?'隐含净值：'+(mv/sh).toFixed(6):'隐含净值：—'},
@@ -690,6 +758,29 @@ const App={
     for(const x of rows){const d=document.createElement('div'),positive=x.deltaCent>=0;d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(x.date)} · ${escapeHtml(x.label)}</b><b class="${positive?'signed-positive':'signed-negative'}">${positive?'+':'−'}${yuan(Math.abs(x.deltaCent))}</b></div><div class="meta">变化后本金 ${yuan(x.principalAfterCent)}</div>`;box.appendChild(d)}
     if(!rows.length)box.innerHTML='<div class="notice">暂无本金变化记录</div>';
   },
+  async renderPrincipalBasis(){
+    if(!await this.initialized())return;const m=await Calc.metrics(),b=m.breakdown,base=m.strategy?.totalInvestmentBaseCent||0;
+    $('principalBasisContent').innerHTML=`<div class="card detail-hero"><span class="small">当前在场本金</span><b>${yuan(b.currentPrincipalCent)}</b><div class="detail-grid"><div class="detail-cell"><span class="small">历史累计外部投入</span><b>${yuan(b.historicalExternalInvestmentCent)}</b></div><div class="detail-cell"><span class="small">现金池</span><b>${yuan(b.cashPoolCent)}</b></div></div><div class="small" style="margin-top:8px">历史累计外部投入不会因止盈减少；当前在场本金会随赎回和止盈退出本金而下降。</div></div><div class="card"><h2>计算构成</h2><table><tr><td>接管日在场本金</td><td>+${yuan(b.takeoverInMarketPrincipalCent)}</td></tr><tr><td>接管后定投（外部计划部分）</td><td>+${yuan(b.recurringInvestmentCent)}</td></tr><tr><td>手动追加（外部）</td><td>+${yuan(b.manualExtraCent)}</td></tr><tr><td>现金池再投入</td><td>+${yuan(b.cashPoolReinvestCent)}</td></tr><tr><td>止盈退出对应本金</td><td>−${yuan(b.exitedPrincipalCent)}</td></tr><tr><td><b>当前在场本金</b></td><td><b>${yuan(b.currentPrincipalCent)}</b></td></tr></table></div><div class="card"><h2>仓位与年度硬上限</h2><div class="formula">${yuan(b.currentPrincipalCent)} ÷ ${yuan(base)} = ${pctBp(m.positionBp)}</div><table><tr><td>当年硬上限</td><td>${yuan(m.hard)}</td></tr><tr><td>剩余可部署</td><td>${yuan(m.remaining)}</td></tr><tr><td>有效定投期数</td><td>${b.effectiveCycleCount}期</td></tr></table></div><div class="card"><div class="action-row"><button id="basisHistory">查看全部本金变动记录</button><button id="basisRecords" class="secondary">查看本金投入记录</button><button id="basisBaseline" class="secondary">查看初始化基线</button></div></div>`;
+    $('basisHistory').onclick=()=>this.showPage('principal-history');$('basisRecords').onclick=()=>this.showPage('records');$('basisBaseline').onclick=()=>this.showPage('baseline-detail');
+  },
+  async renderBaselineDetail(){
+    if(!await this.initialized())return;const b=await DB.get('initialization_baseline','baseline'),revision=PrincipalRevisionCore.revisionStatusOf(b);
+    $('baselineDetailContent').innerHTML=`<div class="card"><div class="row"><h2>初始化基线 / 本金基线详情</h2><span id="baselineRevisionBadge" class="badge ${revision==='MODIFIED'?'modified':''}">${this.revisionLabel(revision)}</span></div><table><tr><td>策略开始日期</td><td>${escapeHtml(b.strategyStartDate)}</td></tr><tr><td>历史有效定投期数</td><td>${b.historicalExecutedCycles}期</td></tr><tr><td>历史累计投入本金</td><td>${yuan(b.historicalInvestedPrincipalCent)}</td></tr><tr><td>接管日期</td><td>${escapeHtml(b.takeoverDate)}</td></tr><tr><td>接管日在场本金</td><td>${yuan(b.takeoverInMarketPrincipalCent)}</td></tr></table>${b.auditFlags?.length?'<div class="audit-warning">历史事实与当时策略上限冲突</div>':''}<div class="notice" style="margin-top:10px">修改初始化本金将影响仓位、硬上限剩余额度和接管后策略XIRR。接管日期作为系统接管事实不可在普通修正中修改。</div><div class="action-row"><button id="editBaseline">修正基线</button>${revision==='MODIFIED'?'<button id="baselineHistory" class="secondary">查看修改历史</button>':''}</div></div>`;
+    $('editBaseline').onclick=()=>this.openBaselineEdit(b);if($('baselineHistory'))$('baselineHistory').onclick=()=>this.renderRevisionHistory('initialization_baseline','baseline','baseline-detail');
+  },
+  openBaselineEdit(b){
+    $('modalSheet').innerHTML=`<h2>修正初始化基线</h2><div class="notice error">修改初始化本金将影响仓位、硬上限剩余额度、接管后XIRR和当前策略建议。原值与每次修改都会保留。</div><label>策略开始日期</label><input id="beStart" type="date" value="${escapeHtml(b.strategyStartDate)}"><label>历史有效定投期数</label><input id="beCycles" type="number" min="0" value="${b.historicalExecutedCycles}"><label>历史累计投入本金（元）</label><input id="beHistorical" type="number" step="0.01" value="${b.historicalInvestedPrincipalCent/100}"><label>接管日在场本金（元）</label><input id="beTakeoverPrincipal" type="number" step="0.01" value="${b.takeoverInMarketPrincipalCent/100}"><label>接管日期（系统事实，不可修改）</label><input type="date" value="${escapeHtml(b.takeoverDate)}" disabled><label>修改原因（必填）</label><textarea id="beReason" rows="2"></textarea><button id="beSave">核对并保存</button><button class="secondary" onclick="App.closeModal()">取消</button>`;
+    $('beSave').onclick=()=>this.saveBaselineEdit(b);$('modal').classList.remove('hidden');
+  },
+  async saveBaselineEdit(before){
+    const reason=$('beReason').value.trim(),start=$('beStart').value,cycles=Number($('beCycles').value),historical=cents($('beHistorical').value),takeoverPrincipal=cents($('beTakeoverPrincipal').value);if(!reason){alert('请填写修改原因');return}if(!start||start>before.takeoverDate||!Number.isInteger(cycles)||cycles<0||historical<0||takeoverPrincipal<0){alert('请检查基线字段；策略开始日期不能晚于接管日期');return}
+    const m=await Calc.metrics(),prospective=m.principal-before.takeoverInMarketPrincipalCent+takeoverPrincipal;if(prospective<0){alert('修正后在场本金不能为负数');return}
+    const now=new Date().toISOString(),after={...before,strategyStartDate:start,historicalExecutedCycles:cycles,historicalInvestedPrincipalCent:historical,takeoverInMarketPrincipalCent:takeoverPrincipal,revisionStatus:'MODIFIED',modifiedAt:now};
+    const revisions=PrincipalRevisionCore.revisionEntries('initialization_baseline','baseline',before,after,reason,now,'USER_EDIT');if(!revisions.length){alert('没有检测到变化');return}if(!confirm('请再次确认：保存后将立即重算本金、仓位、硬上限、现金池关联指标、XIRR和策略建议。继续？'))return;
+    after.originalValues=before.originalValues||{strategyStartDate:before.strategyStartDate,historicalExecutedCycles:before.historicalExecutedCycles,historicalInvestedPrincipalCent:before.historicalInvestedPrincipalCent,takeoverInMarketPrincipalCent:before.takeoverInMarketPrincipalCent};if(m.strategy&&prospective>m.hard)after.auditFlags=[...new Set([...(before.auditFlags||[]),'HISTORICAL_HARD_LIMIT_CONFLICT'])];
+    const opening=await DB.get('external_cashflows','opening');await DB.atomic(['initialization_baseline','external_cashflows','record_revisions'],tx=>{tx.objectStore('initialization_baseline').put(after);tx.objectStore('external_cashflows').put({...opening,id:'opening',date:before.takeoverDate,type:'TAKEOVER_OPENING',amountCent:-takeoverPrincipal,sourceRecordId:'baseline',updatedAt:now,createdAt:opening?.createdAt||before.createdAt||now});for(const revision of revisions)tx.objectStore('record_revisions').put(revision)});
+    this.closeModal();await this.refreshAll();await this.renderBaselineDetail();
+  },
  async saveStrategy(){
    const effective=$('sEffective').value;if(!effective||effective<today()){alert('新策略版本生效日期不能早于今天');return}
    const cur=await this.currentStrategy(),all=await DB.all('strategy_versions'),ver='1.'+all.length,id='strategy-'+Date.now(),base=cents($('sBase').value),hardPct=Number($('sHardBp').value),now=new Date().toISOString();
@@ -698,13 +789,13 @@ const App={
    await DB.atomic(['strategy_versions'],tx=>{if(cur){cur.isCurrent=effective===today()?false:true;cur.effectiveTo=addDays(effective,-1);tx.objectStore('strategy_versions').put(cur)}next.isCurrent=effective===today();tx.objectStore('strategy_versions').put(next)});
    alert('已保存为新策略版本，仅影响生效日期后的未来规则');await this.refreshAll();
  },
- async exportBackup(){
-   const data={schemaVersion:1,exportedAt:new Date().toISOString(),stores:{}};
+  async exportBackup(){
+    const data={schemaVersion:2,appVersion:'1.0.7',exportedAt:new Date().toISOString(),stores:{}};
    for(const s of STORES)data.stores[s]=await DB.all(s);
    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`中证1000策略备份_${today()}.json`;a.click();URL.revokeObjectURL(a.href);
  },
  async importBackup(file){
-   if(!file)return;let data;try{data=JSON.parse(await file.text())}catch(e){alert('备份文件不是有效JSON');return}if(data.schemaVersion!==1||!data.stores||typeof data.stores!=='object'){alert('备份结构或版本不兼容');return}const recordCount=STORES.reduce((n,s)=>n+(Array.isArray(data.stores[s])?data.stores[s].length:0),0);if(!confirm(`将用备份中的 ${recordCount} 条记录覆盖当前本地数据库。继续？`))return;
+    if(!file)return;let data;try{data=JSON.parse(await file.text())}catch(e){alert('备份文件不是有效JSON');return}if(![1,2].includes(data.schemaVersion)||!data.stores||typeof data.stores!=='object'||!Array.isArray(data.stores.record_revisions||[])){alert('备份结构或版本不兼容');return}const recordCount=STORES.reduce((n,s)=>n+(Array.isArray(data.stores[s])?data.stores[s].length:0),0);if(!confirm(`将用备份中的 ${recordCount} 条记录覆盖当前本地数据库，包括全部修订历史。继续？`))return;
    await DB.atomic(STORES,tx=>{for(const s of STORES){const store=tx.objectStore(s);store.clear();for(const x of (data.stores[s]||[]))store.put(x)}});
    alert('恢复完成');location.reload();
  }

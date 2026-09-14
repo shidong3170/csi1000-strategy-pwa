@@ -40,10 +40,10 @@
       id:'baseline',date:baseline.takeoverDate||baseline.strategyStartDate,type:'TAKEOVER_OPENING',label:'接管期初本金',
       deltaCent:baseline.takeoverInMarketPrincipalCent,createdAt:baseline.createdAt||'',order:0
     });
-    for(const x of cycles||[])if(!x.voided&&x.status==='EXECUTED')events.push({
+    for(const x of cycles||[])if(!x.voided&&(x.executionStatus||x.status)==='EXECUTED')events.push({
       id:x.id,date:x.scheduledDate,type:'INVESTMENT_CYCLE',label:'定投执行',deltaCent:Number(x.actualAmountCent)||0,createdAt:x.createdAt||'',order:1
     });
-    for(const x of trades||[])if(!x.voided&&x.type==='MANUAL_BUY')events.push({
+    for(const x of trades||[])if(!x.voided&&x.type==='MANUAL_BUY'&&(!x.executionStatus||x.executionStatus==='EXECUTED'))events.push({
       id:x.id,date:x.tradeDate,type:x.type,label:'手动买入',deltaCent:Number(x.amountCent)||0,createdAt:x.createdAt||'',order:2
     });
     for(const x of trades||[])if(!x.voided&&x.type==='MANUAL_REDEEM')events.push({
