@@ -34,12 +34,13 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;border-bottom:1px solid var(--line);text-align:left}
 .code{font-family:ui-monospace,monospace;background:#f4f5f7;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap}
 .recommendation-card{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}.recommendation-card:active{transform:scale(.995)}.recommendation-card:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}.recommend-hint{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:10px;color:var(--blue);font-size:12px;font-weight:600}.decision-summary{padding:12px;border-radius:12px;background:#edf3ff;color:#174ea6;margin-bottom:12px}.decision-list{display:flex;flex-direction:column;gap:8px}.decision-row{padding:10px;border:1px solid var(--line);border-radius:11px}.decision-row .row{align-items:flex-start}.decision-row b{font-size:14px}.decision-mark{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;font-weight:700}.decision-mark.pass{background:#e7f7ef;color:var(--green)}.decision-mark.fail{background:#f3f4f6;color:var(--muted)}.decision-mark.info{background:#edf3ff;color:var(--blue)}
+.metric-link{cursor:pointer;transition:background .12s ease,transform .12s ease}.metric-link:active{transform:scale(.985);background:#f7faff}.metric-link:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}.metric-link .view-hint{display:block;color:var(--blue);font-size:12px;margin-top:4px}.detail-hero b{display:block;font-size:26px;margin:6px 0}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.detail-cell{padding:10px;border:1px solid var(--line);border-radius:11px}.detail-cell b{display:block;margin-top:4px}.formula{padding:11px;border-radius:10px;background:#f4f7fc;font-family:ui-monospace,monospace;font-size:13px;overflow-wrap:anywhere}.back-button{padding:8px 10px;margin-bottom:10px}.signed-positive{color:var(--green)}.signed-negative{color:var(--red)}
 </style>
 </head>
 <body>
 <header>
   <div class="title">中证1000策略助手</div>
-  <div class="small" id="headerSub">本地数据 · PWA V1.0.4</div>
+  <div class="small" id="headerSub">本地数据 · PWA V1.0.5</div>
 </header>
 
 <main>
@@ -72,7 +73,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
     <div class="grid">
       <div class="metric"><span class="small">当前在场本金</span><b id="mPrincipal">—</b><span id="mPosition" class="small">—</span></div>
       <div class="metric"><span class="small">现金池</span><b id="mCashPool">—</b><span class="small">策略内部资金</span></div>
-      <div class="metric"><span class="small">基金市值</span><b id="mMarketValue">—</b><span id="mCalFresh" class="small">—</span></div>
+      <div id="fundValueCard" class="metric metric-link" role="button" tabindex="0" aria-label="查看基金市值依据"><span class="small">基金市值</span><b id="mMarketValue">—</b><span id="mCalFresh" class="small">—</span><span class="view-hint">查看依据 ›</span></div>
       <div class="metric"><span class="small">策略总资产</span><b id="mTotalAssets">—</b><span class="small">基金 + 现金池</span></div>
     </div>
 
@@ -200,6 +201,25 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
     <div id="marketConnection" class="notice">正在读取同源公开行情数据。</div>
   </div>
 </section>
+
+<section id="page-fund-basis" class="hidden">
+  <button class="secondary back-button" onclick="App.showPage('home')">‹ 返回首页</button>
+  <div id="fundBasisContent"></div>
+</section>
+
+<section id="page-calibration-history" class="hidden">
+  <button class="secondary back-button" onclick="App.showPage('fund-basis')">‹ 返回基金市值依据</button>
+  <div class="card"><h2>校准历史</h2><div id="calibrationHistoryList" class="list"></div></div>
+</section>
+
+<section id="page-principal-history" class="hidden">
+  <button class="secondary back-button" onclick="App.showPage('fund-basis')">‹ 返回基金市值依据</button>
+  <div class="card">
+    <div class="row"><h2>本金变化记录</h2><b id="principalHistoryCurrent">—</b></div>
+    <div class="small" style="margin-bottom:10px">仅展示有效记录：接管期初、定投执行和手动买入增加本金；止盈赎回按成本分摊减少本金。未执行或已撤销记录不计入。</div>
+    <div id="principalHistoryList" class="list"></div>
+  </div>
+</section>
 </main>
 
 <nav>
@@ -215,6 +235,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 5px;b
 <script src="./strategy-core.js"></script>
 <script src="./market-data-core.js"></script>
 <script src="./market-provider.js"></script>
+<script src="./calibration-core.js"></script>
 <script>
 const DB_NAME='CSI1000StrategyDB', DB_VERSION=2;
 const STORES=['app_meta','initialization_baseline','strategy_versions','investment_cycles','manual_trades','cash_pool_ledger','external_cashflows','calibration_snapshots','market_daily','trading_calendar','recommendations','todos','record_revisions','backup_history','settings'];
@@ -226,6 +247,9 @@ const today=()=>window.MarketDataCore?MarketDataCore.beijingClock().date:new Dat
 const cents=v=>Math.round(Number(v||0)*100);
 const daysBetween=(a,b)=>Math.floor((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
 const addDays=(date,days)=>{const d=new Date(date+'T00:00:00');d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)};
+const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const sharesText=micro=>Number.isFinite(micro)?new Intl.NumberFormat('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:6}).format(micro/1e6):'—';
+const navText=scaled=>Number.isFinite(scaled)?(scaled/1e6).toFixed(6):'—';
 
 class DB{
  static db;
@@ -288,8 +312,7 @@ const Calc={
    return b.takeoverInMarketPrincipalCent+cycles+buys-exits;
  },
  async latestCalibration(){
-   const all=(await DB.all('calibration_snapshots')).filter(x=>!x.voided).sort((a,b)=>(b.snapshotAt||b.snapshotDate).localeCompare(a.snapshotAt||a.snapshotDate));
-   return all[0]||null;
+   return CalibrationCore.latestValidCalibration(await DB.all('calibration_snapshots'));
  },
  xirr(cashflows, terminalCent, terminalDate){
    return StrategyCore.xirr(cashflows,terminalCent,terminalDate);
@@ -406,6 +429,8 @@ const App={
     $('btnMarketRefresh').onclick=()=>this.refreshMarket();
     $('recommendCard').onclick=()=>this.openRecommendationDetails();
     $('recommendCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.openRecommendationDetails()}};
+    $('fundValueCard').onclick=()=>this.showPage('fund-basis');
+    $('fundValueCard').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.showPage('fund-basis')}};
    if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
    if(navigator.storage?.persist) navigator.storage.persist().catch(()=>{});
    await this.refreshAll();
@@ -416,6 +441,9 @@ const App={
    document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
    if(name==='records')this.renderRecords();
    if(name==='analysis')this.renderAnalysis();
+   if(name==='fund-basis')this.renderFundBasis();
+   if(name==='calibration-history')this.renderCalibrationHistory();
+   if(name==='principal-history')this.renderPrincipalHistory();
  },
  async initialize(){
    const mv=cents($('initMarketValue').value), shares=Number($('initShares').value);
@@ -428,7 +456,7 @@ const App={
      tx.objectStore('initialization_baseline').put({id:'baseline',strategyStartDate:start,historicalExecutedCycles:cycles,historicalInvestedPrincipalCent:principal,takeoverDate:takeover,takeoverInMarketPrincipalCent:principal,createdAt:now,locked:true});
      tx.objectStore('strategy_versions').put({id:'strategy-v1.0',version:'1.0',effectiveFrom:takeover,isCurrent:true,totalInvestmentBaseCent:15000000,targetPositionMinBp:1500,targetPositionMaxBp:1600,warningPositionBp:1800,slowdownPositionBp:1900,baseHardLimitBp:2000,baseHardLimitCent:3000000,annualHardLimitIncrementCent:600000,baseRecurringAmountCent:10000,targetXirrBp:600,minHoldingYears:3,maxHoldingYears:5,createdAt:now,changeReason:'V1.0 Frozen 初始策略'});
      tx.objectStore('external_cashflows').put({id:'opening',date:takeover,type:'TAKEOVER_OPENING',amountCent:-principal,sourceRecordId:'baseline'});
-     tx.objectStore('calibration_snapshots').put({id:snapshotId,snapshotDate:takeover,snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(shares*1e6),impliedNavScaled:Math.round(mv/100/shares*1e6),inMarketPrincipalCent:principal,cashPoolBalanceCent:0,strategyTotalAssetsCent:mv,createdAt:now});
+     tx.objectStore('calibration_snapshots').put({id:snapshotId,snapshotDate:takeover,snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(shares*1e6),impliedNavScaled:Math.round(mv/100/shares*1e6),inMarketPrincipalCent:principal,cashPoolBalanceCent:0,strategyTotalAssetsCent:mv,source:'INITIALIZATION',createdAt:now});
    });
    await this.refreshAll();
  },
@@ -438,11 +466,11 @@ const App={
    if(!ini)return;
    const m=await Calc.metrics(), r=await Engine.recommend(m);
    $('mPrincipal').textContent=yuan(m.principal);$('mPosition').textContent='本金仓位 '+pctBp(m.positionBp);
-   $('mCashPool').textContent=yuan(m.cash);$('mMarketValue').textContent=yuan(m.fund);$('mTotalAssets').textContent=yuan(m.total);
+   $('mCashPool').textContent=yuan(m.cash);$('mMarketValue').textContent=m.cal?yuan(m.fund):'—';$('mTotalAssets').textContent=m.cal?yuan(m.total):'—';
    $('mHardLimit').textContent=yuan(m.hard);$('mRemaining').textContent=yuan(m.remaining);
    $('mCycles').textContent=((await DB.get('initialization_baseline','baseline')).historicalExecutedCycles+(await DB.all('investment_cycles')).filter(x=>x.status==='EXECUTED'&&!x.voided).length)+'期';
    $('mXirr').textContent=m.xirr==null?'暂不可计算':(m.xirr*100).toFixed(2)+'%';
-   $('mCalFresh').textContent=m.calDays<=7?'校准数据新鲜':m.calDays<=14?`已${m.calDays}天未校准`:'数据已过期';
+   $('mCalFresh').textContent=!m.cal?'待人工校准':m.calDays<=7?'校准数据新鲜':m.calDays<=14?`已${m.calDays}天未校准`:'数据已过期';
    $('positionBar').style.width=Math.min(100,m.positionBp/20)+'%';
    $('positionBadge').textContent=m.positionBp>=1900?'二级警戒':m.positionBp>=1800?'一级警戒':m.positionBp>=1500?'目标附近':'低于目标';
    $('positionBadge').className='badge '+(m.positionBp>=1900?'red':m.positionBp>=1800?'orange':m.positionBp>=1500?'green':'');
@@ -541,7 +569,7 @@ const App={
  async calibrate(){
    const mv=cents($('cMarketValue').value),sh=Number($('cShares').value);if(!mv||!sh){alert('市值和总份额均必填');return}
    const m=await Calc.metrics(),now=new Date().toISOString();
-   await DB.put('calibration_snapshots',{id:'cal-'+Date.now(),snapshotDate:today(),snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(sh*1e6),impliedNavScaled:Math.round(mv/100/sh*1e6),inMarketPrincipalCent:m.principal,cashPoolBalanceCent:m.cash,strategyTotalAssetsCent:mv+m.cash,createdAt:now});
+   await DB.put('calibration_snapshots',{id:'cal-'+Date.now(),snapshotDate:today(),snapshotAt:now,fundMarketValueCent:mv,totalSharesMicro:Math.round(sh*1e6),impliedNavScaled:Math.round(mv/100/sh*1e6),inMarketPrincipalCent:m.principal,cashPoolBalanceCent:m.cash,strategyTotalAssetsCent:mv+m.cash,source:'MANUAL_CALIBRATION',createdAt:now});
    $('cMarketValue').value='';$('cShares').value='';this.previewNav();await this.refreshAll();alert('校准已保存');
  },
  async cashAction(){
@@ -592,6 +620,49 @@ const App={
     $('analysisNotice').className='notice '+(market.available&&market.decisionReady?'ok':market.available?'':'error');
     $('marketConnection').textContent=market.available?`中证1000行情截至 ${market.asOfDate} · ${market.sourceLabel||market.source} · ${market.latestStatusText||market.freshness}`:market.reason;
     $('marketConnection').className='notice '+(market.available&&market.latestStatus==='LATEST'?'ok':market.available?'':'error');
+  },
+  calibrationSource(source){return ({TAKE_PROFIT:'止盈操作自动生成',INITIALIZATION:'首次接管初始化',MANUAL_CALIBRATION:'人工校准'})[source]||'历史人工校准'},
+  calibrationTime(value){return value?this.formatMarketTime(value):'—'},
+  async renderFundBasis(){
+    if(!await this.initialized())return;
+    const snapshots=await DB.all('calibration_snapshots'),cash=await Calc.cashPool(),market=await Market.status();
+    const basis=CalibrationCore.buildBasis(snapshots,{today:today(),marketAsOfDate:market.available?market.asOfDate:null,cashPoolCent:cash});
+    this.currentFundBasis=basis;
+    const box=$('fundBasisContent');
+    if(!basis.snapshot){
+      box.innerHTML='<div class="card"><h2>基金市值依据</h2><div class="notice error">尚无有效校准快照，当前无法给出基金市值依据。</div><button style="width:100%;margin-top:12px" onclick="App.showPage(\'more\')">去人工校准</button></div>';
+      return;
+    }
+    const s=basis.snapshot,f=basis.freshness,age=f.days===0?'今天校准':`距今 ${f.days} 天`;
+    const freshnessClass=f.code==='FRESH'?'green':f.code==='DUE'?'orange':'red';
+    const relation=basis.marketAsOfDate&&basis.marketAsOfDate!==s.snapshotDate?'日期不同（数据源和用途不同）':'日期一致，但仍属于不同数据源和用途';
+    box.innerHTML=`
+      <div class="card detail-hero"><div class="row"><h2>基金市值依据</h2><span class="badge ${freshnessClass}">${escapeHtml(f.label)}</span></div><span class="small">当前基金市值</span><b>${yuan(basis.fundMarketValueCent)}</b><div class="small">来自最新有效校准快照 · ${escapeHtml(age)}</div></div>
+      ${basis.status==='ABNORMAL'?'<div class="notice error" style="margin-bottom:12px">快照总份额为零或数据异常，无法计算校准隐含净值；请重新人工校准。</div>':''}
+      <div class="card"><h2>同一快照的计算依据</h2><div class="detail-grid"><div class="detail-cell"><span class="small">基金市值</span><b>${yuan(basis.fundMarketValueCent)}</b></div><div class="detail-cell"><span class="small">总份额</span><b>${sharesText(basis.totalSharesMicro)}</b></div></div><div class="small" style="margin-top:8px">份额依据：用户于 ${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))} 人工校准时录入的基金总份额。</div><h3>校准隐含净值</h3><div class="formula">${yuan(basis.fundMarketValueCent)} ÷ ${sharesText(basis.totalSharesMicro)} 份 = ${navText(basis.impliedNavScaled)} 元/份</div><div class="small" style="margin-top:8px">净值依据日期：${escapeHtml(s.snapshotDate)}。市值、份额和隐含净值全部取自同一个最新有效快照。基金官方单位净值：未接入；当前策略计算不依赖基金官方单位净值。</div></div>
+      <div class="card"><h2>时间与来源</h2><table><tr><td>人工校准时间</td><td>${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))}</td></tr><tr><td>校准数据对应日期</td><td>${escapeHtml(s.snapshotDate)}</td></tr><tr><td>持仓数据来源</td><td>${escapeHtml(this.calibrationSource(s.source))}</td></tr><tr><td>中证1000行情日期</td><td>${escapeHtml(basis.marketAsOfDate||'当前不可用')}</td></tr><tr><td>两类日期关系</td><td>${escapeHtml(relation)}</td></tr></table><div class="small" style="margin-top:8px">基金持仓数据用于基金市值、总份额、策略总资产和 XIRR 估值；中证1000指数数据用于回撤、近3年位置、MA200和下一交易日建议，二者互不替代。</div></div>
+      <div class="card"><h2>策略资产口径</h2><table><tr><td>基金市值</td><td>${yuan(basis.fundMarketValueCent)}</td></tr><tr><td>现金池</td><td>${yuan(basis.cashPoolCent)}</td></tr><tr><td><b>策略总资产</b></td><td><b>${yuan(basis.strategyTotalAssetsCent)}</b></td></tr></table><div class="small" style="margin-top:8px">接管后策略 XIRR 以外部现金流和最新策略总资产作为期末价值计算。</div></div>
+      <div class="card"><div class="row wrap"><button id="btnSnapshotDetail" class="secondary">快照详情</button><button id="btnCalibrationHistory" class="secondary">校准历史</button><button id="btnPrincipalHistory" class="secondary">本金变化记录</button></div></div>`;
+    $('btnSnapshotDetail').onclick=()=>this.openSnapshotDetail();
+    $('btnCalibrationHistory').onclick=()=>this.showPage('calibration-history');
+    $('btnPrincipalHistory').onclick=()=>this.showPage('principal-history');
+  },
+  openSnapshotDetail(){
+    const s=this.currentFundBasis?.snapshot;if(!s)return;
+    $('modalSheet').innerHTML=`<div class="row"><h2>校准快照详情</h2><span class="badge ${s.voided?'red':'green'}">${s.voided?'已撤销':'有效'}</span></div><table><tr><td>快照编号</td><td>${escapeHtml(s.id)}</td></tr><tr><td>快照日期</td><td>${escapeHtml(s.snapshotDate)}</td></tr><tr><td>基金市值</td><td>${yuan(s.fundMarketValueCent)}</td></tr><tr><td>总份额</td><td>${sharesText(s.totalSharesMicro)}</td></tr><tr><td>校准隐含净值</td><td>${navText(CalibrationCore.impliedNav(s))} 元/份</td></tr><tr><td>当时在场本金</td><td>${yuan(s.inMarketPrincipalCent)}</td></tr><tr><td>当时现金池</td><td>${yuan(s.cashPoolBalanceCent)}</td></tr><tr><td>当时策略总资产</td><td>${yuan(s.strategyTotalAssetsCent)}</td></tr><tr><td>来源</td><td>${escapeHtml(this.calibrationSource(s.source))}</td></tr><tr><td>校准时间</td><td>${escapeHtml(this.calibrationTime(s.snapshotAt))}</td></tr><tr><td>创建时间</td><td>${escapeHtml(this.calibrationTime(s.createdAt))}</td></tr></table><button style="width:100%;margin-top:14px" onclick="App.closeModal()">关闭</button>`;
+    $('modal').classList.remove('hidden');
+  },
+  async renderCalibrationHistory(){
+    const rows=CalibrationCore.sortNewestFirst(await DB.all('calibration_snapshots')),box=$('calibrationHistoryList');box.innerHTML='';
+    for(const s of rows){const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(s.snapshotDate)}</b><span class="badge ${s.voided?'red':'green'}">${s.voided?'已撤销':'有效'}</span></div><div>${yuan(s.fundMarketValueCent)} · ${sharesText(s.totalSharesMicro)} 份</div><div class="meta">隐含净值 ${navText(CalibrationCore.impliedNav(s))} · ${escapeHtml(this.calibrationSource(s.source))} · ${escapeHtml(this.calibrationTime(s.snapshotAt||s.createdAt))}</div>`;box.appendChild(d)}
+    if(!rows.length)box.innerHTML='<div class="notice">暂无校准历史</div>';
+  },
+  async renderPrincipalHistory(){
+    const baseline=await DB.get('initialization_baseline','baseline'),cycles=await DB.all('investment_cycles'),trades=await DB.all('manual_trades');
+    const rows=CalibrationCore.buildPrincipalChanges(baseline,cycles,trades),box=$('principalHistoryList');box.innerHTML='';
+    $('principalHistoryCurrent').textContent=yuan(await Calc.principal());
+    for(const x of rows){const d=document.createElement('div'),positive=x.deltaCent>=0;d.className='item';d.innerHTML=`<div class="row"><b>${escapeHtml(x.date)} · ${escapeHtml(x.label)}</b><b class="${positive?'signed-positive':'signed-negative'}">${positive?'+':'−'}${yuan(Math.abs(x.deltaCent))}</b></div><div class="meta">变化后本金 ${yuan(x.principalAfterCent)}</div>`;box.appendChild(d)}
+    if(!rows.length)box.innerHTML='<div class="notice">暂无本金变化记录</div>';
   },
  async saveStrategy(){
    const effective=$('sEffective').value;if(!effective||effective<today()){alert('新策略版本生效日期不能早于今天');return}
