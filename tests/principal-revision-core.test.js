@@ -26,10 +26,18 @@ assert.equal(result.after.countsAsCycle,false);
 assert.equal(result.prospectivePrincipal,90000);
 
 const pending={...executed,id:'c2',executionStatus:'PENDING',status:'PENDING',actualAmountCent:0,externalFundingCent:0,countsAsCycle:false};
+const pendingTwo={...pending,id:'c3',scheduledDate:'2026-09-12'};
+const waitingNav={...executed,id:'c4',shareConfirmationStatus:'PENDING_NAV'};
+assert.deepEqual(core.pendingRecords([waitingNav,{...waitingNav,id:'c5'},{...waitingNav,id:'c6'},pending,pendingTwo]).map(x=>x.id),['c3','c2']);
 result=core.prepareRecordRevision(pending,{executionStatus:'EXECUTED',actualAmountCent:10000,externalFundingCent:10000},{currentPrincipalCent:100000,currentCashPoolCent:0,hardLimitCent:3000000,today:'2026-09-14'});
 assert.equal(result.after.executionStatus,'EXECUTED');
 result=core.prepareRecordRevision(pending,{executionStatus:'NOT_EXECUTED',actualAmountCent:0,externalFundingCent:0},{currentPrincipalCent:100000,currentCashPoolCent:0,hardLimitCent:3000000,today:'2026-09-14'});
 assert.equal(result.after.executionStatus,'NOT_EXECUTED');
+const transition=core.executionTransitionEntry('investment_cycle',pending,{...pending,executionStatus:'NOT_EXECUTED'},'2026-09-14T08:00:00.000Z');
+assert.equal(transition.changeType,'EXECUTION_CONFIRMATION');
+assert.equal(transition.before,'PENDING');
+assert.equal(transition.after,'NOT_EXECUTED');
+assert.throws(()=>core.executionTransitionEntry('investment_cycle',executed,{...executed,executionStatus:'NOT_EXECUTED'},'2026-09-14T08:00:00.000Z'),/INVALID_PENDING_TRANSITION/);
 
 const blocked={...pending,executionStatus:'BLOCKED_HARD_LIMIT',status:'BLOCKED_HARD_LIMIT'};
 assert.throws(()=>core.prepareRecordRevision(blocked,{executionStatus:'EXECUTED',actualAmountCent:10000,externalFundingCent:10000},{currentPrincipalCent:3000000,currentCashPoolCent:0,hardLimitCent:3000000,today:'2026-09-14'}),/HARD_LIMIT_EXCEEDED/);
@@ -61,6 +69,25 @@ assert.equal(breakdown.currentPrincipalCent,2168000);
 assert.equal(breakdown.historicalExternalInvestmentCent,2208000);
 assert.equal(breakdown.cashPoolCent,20000);
 assert.equal(breakdown.effectiveCycleCount,172);
+
+const periodBaseline={takeoverDate:'2026-09-01',takeoverInMarketPrincipalCent:1000000};
+const opening=[{date:'2026-09-01',type:'TAKEOVER_OPENING',amountCent:-1000000}];
+let period=core.formalPeriodReturn({baseline:periodBaseline,cashflows:opening,formalFundMarketValueCent:970000,cashPoolCent:0,asOfDate:'2026-09-30'});
+assert.equal(period.status,'AVAILABLE');
+assert.equal(period.rate,-0.03);
+assert.equal(period.shortTakeover,true);
+period=core.formalPeriodReturn({baseline:periodBaseline,cashflows:[...opening,{date:'2026-09-10',type:'EXTERNAL_CONTRIBUTION',amountCent:-100000}],formalFundMarketValueCent:1055000,cashPoolCent:100000,asOfDate:'2026-10-01'});
+assert.equal(period.netExternalContributionCent,1100000);
+assert.equal(period.formalEndingAssetsCent,1155000);
+assert.equal(period.rate,0.05);
+assert.equal(period.shortTakeover,false);
+const movedInternally=core.formalPeriodReturn({baseline:periodBaseline,cashflows:[...opening,{date:'2026-09-10',type:'EXTERNAL_CONTRIBUTION',amountCent:-100000}],formalFundMarketValueCent:955000,cashPoolCent:200000,asOfDate:'2026-10-01'});
+assert.equal(movedInternally.rate,period.rate);
+period=core.formalPeriodReturn({baseline:periodBaseline,cashflows:[...opening,{date:'2026-09-10',type:'EXTERNAL_CONTRIBUTION',amountCent:-100000},{date:'2026-09-20',type:'STRATEGY_WITHDRAWAL',amountCent:50000}],formalFundMarketValueCent:1000000,cashPoolCent:102500,asOfDate:'2026-10-01'});
+assert.equal(period.netExternalContributionCent,1050000);
+assert.equal(period.rate,0.05);
+assert.equal(core.formalPeriodReturn({baseline:periodBaseline,cashflows:opening,formalFundMarketValueCent:null,cashPoolCent:0,asOfDate:'2026-10-01'}).status,'UNAVAILABLE');
+assert.equal(core.formalPeriodReturn({baseline:periodBaseline,cashflows:[],formalFundMarketValueCent:970000,cashPoolCent:0,asOfDate:'2026-10-01'}).reason,'CASHFLOW_FACTS_INCOMPLETE');
 
 const baselineRevisions=core.revisionEntries('initialization_baseline','baseline',{strategyStartDate:'2025-12-14',historicalExecutedCycles:171,historicalInvestedPrincipalCent:2138000,takeoverInMarketPrincipalCent:2138000},{strategyStartDate:'2025-12-14',historicalExecutedCycles:171,historicalInvestedPrincipalCent:2138000,takeoverInMarketPrincipalCent:2118000},'与实际核对','2026-09-14T07:20:00.000Z');
 assert.equal(baselineRevisions.length,1);
