@@ -29,6 +29,10 @@
   function recordDate(record){return record?.scheduledDate||record?.tradeDate||''}
   function manualExtra(planned,actual){return Math.max(0,integer(actual,'ACTUAL_AMOUNT')-integer(planned,'PLANNED_AMOUNT'))}
 
+  function pendingRecords(records=[]){
+    return [...records].filter(record=>!record?.voided&&statusOf(record)===EXECUTION.PENDING).sort((a,b)=>recordDate(b).localeCompare(recordDate(a))||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  }
+
   function validateFunding(input){
     const status=input.executionStatus;
     if(!Object.values(EXECUTION).includes(status)) throw new Error('INVALID_EXECUTION_STATUS');
@@ -80,6 +84,33 @@
     }));
   }
 
+  function executionTransitionEntry(entityType,before,after,changedAt,notes=''){
+    const from=statusOf(before),to=statusOf(after);
+    if(from!==EXECUTION.PENDING||![EXECUTION.EXECUTED,EXECUTION.NOT_EXECUTED].includes(to))throw new Error('INVALID_PENDING_TRANSITION');
+    return {id:`rev-${changedAt.replace(/\D/g,'')}-execution-${before.id}-${++revisionSequence}`,entityType,entityId:before.id,fieldName:'executionStatus',fieldLabel:FIELD_LABELS.executionStatus,changeType:'EXECUTION_CONFIRMATION',before:from,after:to,changedAt,changeReason:String(notes||'').trim()||(to===EXECUTION.EXECUTED?'确认已执行':'确认未执行'),source:'PENDING_ACTION'};
+  }
+
+  function formalPeriodReturn({baseline,cashflows=[],formalFundMarketValueCent,cashPoolCent,asOfDate}){
+    const datePattern=/^\d{4}-\d{2}-\d{2}$/;
+    const takeoverDate=baseline?.takeoverDate;
+    const days=datePattern.test(String(takeoverDate||''))&&datePattern.test(String(asOfDate||''))?Math.floor((new Date(`${asOfDate}T00:00:00Z`)-new Date(`${takeoverDate}T00:00:00Z`))/86400000):null;
+    const unavailable=reason=>({status:'UNAVAILABLE',reason,rate:null,netExternalContributionCent:null,formalEndingAssetsCent:null,formalPeriodProfitCent:null,daysSinceTakeover:days,shortTakeover:Number.isInteger(days)&&days>=0&&days<30});
+    if(!datePattern.test(String(takeoverDate||''))||!datePattern.test(String(asOfDate||''))||days<0)return unavailable('TAKEOVER_DATE_MISSING');
+    const openingPrincipal=Number(baseline?.takeoverInMarketPrincipalCent);
+    if(!Number.isSafeInteger(openingPrincipal)||openingPrincipal<0)return unavailable('CASHFLOW_FACTS_INCOMPLETE');
+    const active=(cashflows||[]).filter(flow=>!flow?.voided),allowed=new Set(['TAKEOVER_OPENING','EXTERNAL_CONTRIBUTION','STRATEGY_WITHDRAWAL']);
+    if(active.some(flow=>!allowed.has(flow.type)||!datePattern.test(String(flow.date||''))||!Number.isSafeInteger(Number(flow.amountCent))||flow.date<takeoverDate||flow.date>asOfDate))return unavailable('CASHFLOW_FACTS_INCOMPLETE');
+    const openings=active.filter(flow=>flow.type==='TAKEOVER_OPENING');
+    if(openings.length!==1||openings[0].date!==takeoverDate||Number(openings[0].amountCent)!==-openingPrincipal)return unavailable('CASHFLOW_FACTS_INCOMPLETE');
+    if(formalFundMarketValueCent==null||cashPoolCent==null)return unavailable('FORMAL_ENDING_ASSETS_UNAVAILABLE');
+    const fund=Number(formalFundMarketValueCent),cash=Number(cashPoolCent);
+    if(!Number.isSafeInteger(fund)||fund<0||!Number.isSafeInteger(cash)||cash<0)return unavailable('FORMAL_ENDING_ASSETS_UNAVAILABLE');
+    const net=-active.reduce((sum,flow)=>sum+Number(flow.amountCent),0);
+    if(!Number.isSafeInteger(net)||net<=0)return unavailable('NET_EXTERNAL_CONTRIBUTION_NON_POSITIVE');
+    const ending=fund+cash,profit=ending-net;
+    return {status:'AVAILABLE',reason:null,rate:profit/net,netExternalContributionCent:net,formalEndingAssetsCent:ending,formalPeriodProfitCent:profit,daysSinceTakeover:days,shortTakeover:days<30};
+  }
+
   function principalBreakdown(baseline,cycles=[],trades=[],externalCashflows=[],cashLedger=[]){
     const takeover=integer(baseline?.takeoverInMarketPrincipalCent||0,'TAKEOVER_PRINCIPAL');
     let recurring=0,manual=0,cashReinvest=0;
@@ -100,5 +131,5 @@
     return {takeoverInMarketPrincipalCent:takeover,recurringInvestmentCent:recurring,manualExtraCent:manual,cashPoolReinvestCent:cashReinvest,exitedPrincipalCent:exits,currentPrincipalCent:principal,historicalExternalInvestmentCent:integer(baseline?.historicalInvestedPrincipalCent||0,'HISTORICAL_INVESTED')+externalAfterTakeover,cashPoolCent:cashPool,effectiveCycleCount:cycleCount};
   }
 
-  return {EXECUTION,REVISION,EXECUTION_LABELS,REVISION_LABELS,FIELD_LABELS,statusOf,revisionStatusOf,isExecuted,actualOf,recordDate,manualExtra,validateFunding,prepareRecordRevision,revisionEntries,principalBreakdown};
+  return {EXECUTION,REVISION,EXECUTION_LABELS,REVISION_LABELS,FIELD_LABELS,statusOf,revisionStatusOf,isExecuted,actualOf,recordDate,manualExtra,pendingRecords,validateFunding,prepareRecordRevision,revisionEntries,executionTransitionEntry,formalPeriodReturn,principalBreakdown};
 });
