@@ -38,6 +38,25 @@ assert.equal(core.calcSimulation(derived,navT1).marketValueCent,143640);
 assert.equal(core.calcSimulation(derived,null).status,'PENDING_NAV');
 assert.equal(core.calcDerivedShares([],[],[]).status,'PENDING_SHARES');
 
+const firstBuyEvent={entityType:'investment_cycle',entityId:'cycle-1',tradeDate:'2026-09-15',confirmedSharesMicro:80000000,confirmedAt:'2026-09-16T08:00:00Z',source:'MANUAL',actualAmountCent:10000,unitNavScaled:1250000};
+const correctedRecord={...confirmed,shareConfirmationStatus:'MANUAL_CORRECTED',confirmedSharesMicro:100000000,shareConfirmedAt:'2026-09-18T08:00:00Z'};
+const correctedEvent={...firstBuyEvent,confirmedSharesMicro:100000000,confirmedAt:'2026-09-18T08:00:00Z',source:'NAV_MANUAL_CORRECTION',unitNavScaled:1000000};
+const timeline=core.buildShareTimeline([anchor],[correctedRecord],[manualBuy,redeem],[firstBuyEvent,correctedEvent],[],'2026-09-18');
+assert.equal(timeline.events[0].eventType,'CALIBRATION_ANCHOR');
+assert.equal(timeline.events.some(x=>x.eventType==='BUY_CONFIRMED'),true);
+assert.equal(timeline.events.some(x=>x.eventType==='REDEEM_CONFIRMED'),true);
+assert.equal(timeline.events.some(x=>x.eventType==='NAV_REVISION_RECALC'),true);
+assert.equal(timeline.currentSharesMicro,1160000000);
+assert.equal(timeline.events.at(-1).afterSharesMicro,timeline.currentSharesMicro);
+assert.equal(core.buildShareTimeline([],[],[],[],[]).historyComplete,false);
+assert.equal(core.buildShareTimeline([anchor],[{...pending,shareConfirmationStatus:'PENDING_NAV'}],[],[],[],'2026-09-18').pendingCount,1);
+assert.equal(core.buildShareTimeline([anchor],[{...pending,executionStatus:'NOT_EXECUTED',shareConfirmationStatus:'NOT_APPLICABLE'}],[],[],[],'2026-09-18').events.length,1);
+const newerAnchor=core.applyCalibrationAnchor({id:'cal-2',source:'MANUAL_CALIBRATION',snapshotDate:'2026-09-18',snapshotAt:'2026-09-18T10:00:00Z',fundMarketValueCent:150000,totalSharesMicro:1200000000},1160000000);
+const resetTimeline=core.buildShareTimeline([anchor,newerAnchor],[correctedRecord],[manualBuy,redeem],[firstBuyEvent,correctedEvent],[],'2026-09-18');
+assert.equal(resetTimeline.currentSharesMicro,1200000000);
+assert.equal(resetTimeline.events.length,1);
+assert.equal(resetTimeline.events[0].deltaSharesMicro,40000000);
+
 const sameDayAfter={...confirmed,scheduledDate:'2026-09-14',createdAt:'2026-09-14T09:00:00Z',confirmedAt:'2026-09-14T11:00:00Z'};
 assert.equal(core.calcDerivedShares([anchor],[sameDayAfter],[],'2026-09-14').confirmedBuySharesMicro,80000000);
 const autoSnapshot={id:'auto',source:'TAKE_PROFIT',snapshotDate:'2026-09-17',snapshotAt:'2026-09-17T10:00:00Z',fundMarketValueCent:5000};

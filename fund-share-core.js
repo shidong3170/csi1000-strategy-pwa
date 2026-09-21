@@ -82,6 +82,31 @@
     const derived=asSafeNumber(derivedBig,'DERIVED_SHARES'),buyNumber=asSafeNumber(buys,'CONFIRMED_BUY_SHARES'),redeemNumber=asSafeNumber(redeems,'CONFIRMED_REDEEM_SHARES');
     return {status:SIMULATION_STATUS.AVAILABLE,anchor,derivedSharesMicro:derived,confirmedBuySharesMicro:buyNumber,confirmedRedeemSharesMicro:redeemNumber};
   }
+  function buildShareTimeline(calibrations,cycles,trades,shareEvents=[],revisions=[],asOfDate='9999-12-31'){
+    const derived=calcDerivedShares(calibrations,cycles,trades,asOfDate),pendingCount=[...(cycles||[]),...(trades||[]).filter(x=>x.type==='MANUAL_BUY')].filter(x=>!x.voided&&executionStatus(x)==='EXECUTED'&&x.shareConfirmationStatus===SHARE_STATUS.PENDING_NAV&&recordDate(x)<=asOfDate).length;
+    if(!derived.anchor)return {status:SIMULATION_STATUS.PENDING_SHARES,anchor:null,currentSharesMicro:null,pendingCount,events:[],historyComplete:false};
+    const anchor=derived.anchor,anchorShares=asSafeNumber(anchor.anchorSharesMicro??anchor.totalSharesMicro,'ANCHOR_SHARES'),events=[{eventType:'CALIBRATION_ANCHOR',eventName:anchor.source==='INITIALIZATION'?'首次接管校准锚点':'人工校准锚点',date:anchor.snapshotDate,occurredAt:anchor.anchorEffectiveAt||anchor.snapshotAt||anchor.createdAt||anchor.snapshotDate,beforeSharesMicro:Number.isSafeInteger(Number(anchor.derivedSharesBeforeCalibrationMicro))?Number(anchor.derivedSharesBeforeCalibrationMicro):null,deltaSharesMicro:Number.isSafeInteger(Number(anchor.shareCorrectionMicro))?Number(anchor.shareCorrectionMicro):null,afterSharesMicro:anchorShares,sourceType:'calibration_snapshot',sourceId:anchor.id,amountCent:anchor.fundMarketValueCent??null,unitNavScaled:anchor.impliedNavScaled??null,reconstructable:true}];
+    const candidates=[];
+    const addBuy=(record,entityType)=>{
+      if(!isConfirmed(record)||recordDate(record)>asOfDate||!afterAnchor(record,anchor))return;
+      const current=asSafeNumber(record.confirmedSharesMicro,'CONFIRMED_SHARES'),audits=(shareEvents||[]).filter(x=>x.entityType===entityType&&x.entityId===record.id&&Number.isSafeInteger(Number(x.confirmedSharesMicro))&&String(x.tradeDate||recordDate(record))<=asOfDate).sort((a,b)=>String(a.confirmedAt||'').localeCompare(String(b.confirmedAt||'')));
+      if(!audits.length){candidates.push({eventType:record.shareConfirmationStatus===SHARE_STATUS.MANUAL_CORRECTED?'MANUAL_SHARE_CORRECTION':'BUY_CONFIRMED',eventName:record.shareConfirmationStatus===SHARE_STATUS.MANUAL_CORRECTED?'人工份额纠偏':'买入份额确认',date:recordDate(record),occurredAt:record.shareConfirmedAt||record.createdAt||recordDate(record),deltaSharesMicro:current,sourceType:entityType,sourceId:record.id,amountCent:Number(record.actualAmountCent??record.amountCent)||0,unitNavScaled:record.unitNavScaled??null,reconstructable:true});return}
+      let previous=0;
+      for(let index=0;index<audits.length;index++){
+        const audit=audits[index],value=asSafeNumber(audit.confirmedSharesMicro,'CONFIRMED_SHARES'),revision=index>0||audit.source==='NAV_MANUAL_CORRECTION'||audit.source==='RECORD_REVISION';
+        candidates.push({eventType:revision?'NAV_REVISION_RECALC':'BUY_CONFIRMED',eventName:revision?'净值修正重算':'买入份额确认',date:audit.tradeDate||recordDate(record),occurredAt:audit.confirmedAt||record.shareConfirmedAt||record.createdAt||recordDate(record),deltaSharesMicro:value-previous,sourceType:entityType,sourceId:record.id,amountCent:audit.actualAmountCent??(Number(record.actualAmountCent??record.amountCent)||0),unitNavScaled:audit.unitNavScaled??record.unitNavScaled??null,reconstructable:true});previous=value;
+      }
+      if(previous!==current)candidates.push({eventType:'MANUAL_SHARE_CORRECTION',eventName:'人工份额纠偏',date:recordDate(record),occurredAt:record.shareConfirmedAt||record.modifiedAt||record.createdAt||recordDate(record),deltaSharesMicro:current-previous,sourceType:entityType,sourceId:record.id,amountCent:Number(record.actualAmountCent??record.amountCent)||0,unitNavScaled:record.unitNavScaled??null,reconstructable:true});
+    };
+    for(const record of cycles||[])addBuy(record,'investment_cycle');
+    for(const record of (trades||[]).filter(x=>x.type==='MANUAL_BUY'))addBuy(record,'manual_trade');
+    for(const record of (trades||[]).filter(x=>x.type==='MANUAL_REDEEM'))if(!record.voided&&recordDate(record)<=asOfDate&&afterAnchor(record,anchor)&&[SHARE_STATUS.CONFIRMED,SHARE_STATUS.MANUAL_CORRECTED].includes(record.shareConfirmationStatus)){const value=asSafeNumber(record.redeemedSharesMicro||0,'REDEEMED_SHARES');candidates.push({eventType:'REDEEM_CONFIRMED',eventName:'赎回份额确认',date:recordDate(record),occurredAt:record.shareConfirmedAt||record.createdAt||recordDate(record),deltaSharesMicro:-value,sourceType:'manual_trade',sourceId:record.id,amountCent:Number(record.redeemAmountCent??record.amountCent)||0,unitNavScaled:record.unitNavScaled??null,reconstructable:true})}
+    candidates.sort((a,b)=>String(a.occurredAt||a.date).localeCompare(String(b.occurredAt||b.date))||String(a.sourceId).localeCompare(String(b.sourceId)));
+    let running=anchorShares;
+    for(const event of candidates){event.beforeSharesMicro=running;running+=event.deltaSharesMicro;event.afterSharesMicro=running;events.push(event)}
+    if(running!==derived.derivedSharesMicro){events.push({eventType:'NAV_REVISION_RECALC',eventName:'当前事实重算',date:asOfDate,occurredAt:asOfDate,beforeSharesMicro:running,deltaSharesMicro:derived.derivedSharesMicro-running,afterSharesMicro:derived.derivedSharesMicro,sourceType:'derived_facts',sourceId:null,amountCent:null,unitNavScaled:null,reconstructable:false});running=derived.derivedSharesMicro}
+    return {status:SIMULATION_STATUS.AVAILABLE,anchor,currentSharesMicro:running,pendingCount,events,historyComplete:true,revisionCount:(revisions||[]).filter(x=>['fund_nav','investment_cycle','manual_trade'].includes(x.entityType)).length};
+  }
   function calcSimulation(derivedResult,nav){
     if(!derivedResult||derivedResult.derivedSharesMicro==null)return {status:SIMULATION_STATUS.PENDING_SHARES,marketValueCent:null,nav:null};
     if(!nav)return {status:SIMULATION_STATUS.PENDING_NAV,marketValueCent:null,nav:null};
@@ -108,5 +133,5 @@
     if(['fund_profiles','fund_nav_daily','investment_cycles','manual_trades','share_confirmation_events'].some(name=>(normalized[name]||[]).some(x=>x.fundCode==='000852')))throw new Error('INDEX_AS_FUND');
     return normalized;
   }
-  return {SHARE_STATUS,SHARE_LABELS,SIMULATION_STATUS,SIMULATION_LABELS,parseScaledDecimal,calcConfirmedShares,calcMarketValueCent,calcImpliedNavScaled,calcProportionalShares,recordDate,executionStatus,isConfirmed,statusForExecution,getFundProfile,getFundNav,latestFundNav,shareFields,latestRealCalibration,calcDerivedShares,calcSimulation,applyCalibrationAnchor,normalizeLegacyRecord,normalizeBackupStores};
+  return {SHARE_STATUS,SHARE_LABELS,SIMULATION_STATUS,SIMULATION_LABELS,parseScaledDecimal,calcConfirmedShares,calcMarketValueCent,calcImpliedNavScaled,calcProportionalShares,recordDate,executionStatus,isConfirmed,statusForExecution,getFundProfile,getFundNav,latestFundNav,shareFields,latestRealCalibration,calcDerivedShares,buildShareTimeline,calcSimulation,applyCalibrationAnchor,normalizeLegacyRecord,normalizeBackupStores};
 });
