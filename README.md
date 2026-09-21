@@ -1,4 +1,4 @@
-# 中证1000策略助手 PWA V1.0.11
+# 中证1000策略助手 PWA V1.0.12
 
 ## 运行
 必须通过 HTTP/HTTPS 访问，Service Worker 不能长期依赖 `file://`。
