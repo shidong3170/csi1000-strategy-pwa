@@ -2,7 +2,7 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "feature/**"]
   workflow_dispatch:
   workflow_run:
     workflows: ["Update CSI 1000 market data"]
@@ -41,7 +41,7 @@ jobs:
 
   deploy:
     needs: verify
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
