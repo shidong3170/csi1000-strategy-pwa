@@ -70,7 +70,7 @@ assert.equal(core.normalizeLegacyRecord({scheduledDate:'2026-09-11',status:'NOT_
 const oldBackup=core.normalizeBackupStores({schemaVersion:2,stores:{record_revisions:[],investment_cycles:[{id:'old',scheduledDate:'2026-09-10',status:'EXECUTED',actualAmountCent:10000}],calibration_snapshots:[{id:'old-cal',source:'INITIALIZATION',snapshotAt:'2026-09-01T00:00:00Z',snapshotDate:'2026-09-01',totalSharesMicro:1000000}],app_meta:[{id:'app',schemaVersion:3}]}},['record_revisions','investment_cycles','manual_trades','calibration_snapshots','app_meta','fund_profiles','fund_nav_daily']);
 assert.equal(oldBackup.investment_cycles[0].shareConfirmationStatus,'PENDING_NAV');
 assert.equal(oldBackup.calibration_snapshots[0].isShareAnchor,true);
-assert.equal(oldBackup.app_meta[0].schemaVersion,4);
+assert.equal(oldBackup.app_meta[0].schemaVersion,5);
 assert.throws(()=>core.normalizeBackupStores({schemaVersion:3,stores:{record_revisions:[],fund_profiles:[{fundCode:'000852'}]}},['record_revisions','fund_profiles','fund_nav_daily','investment_cycles','manual_trades','calibration_snapshots','app_meta']),/INDEX_AS_FUND/);
 assert.throws(()=>core.normalizeBackupStores({schemaVersion:3,stores:{record_revisions:[],investment_cycles:[{fundCode:'000852',shareConfirmationStatus:'CONFIRMED'}]}},['record_revisions','fund_profiles','fund_nav_daily','investment_cycles','manual_trades','share_confirmation_events','calibration_snapshots','app_meta']),/INDEX_AS_FUND/);
 

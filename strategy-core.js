@@ -92,13 +92,15 @@
 
   function recommend(input){
     const {strategy,principalCent,positionBp,remainingCent,cashPoolCent,holdingYears,xirrRate,calibrationStatus,market}=input;
+    const takeProfitMinXirr=Number.isFinite(input.takeProfitMinXirr)?input.takeProfitMinXirr:0.10;
     if(remainingCent<=0) return {action:'STOP_NEW_INVESTMENT',amountCent:0,reasonCodes:['HARD_LIMIT_REACHED'],funding:fundingSourceSplit(0,cashPoolCent)};
     if(holdingYears>=5){
+      if(xirrRate==null||calibrationStatus==='STALE'||calibrationStatus==='MISSING')return {action:'REASSESS_STRATEGY',amountCent:0,reasonCodes:['MAX_TERM_DATA_UNAVAILABLE'],funding:fundingSourceSplit(0,cashPoolCent)};
       const achieved=xirrRate!=null&&xirrRate>=strategy.targetXirrBp/10000;
       return {action:achieved?'EXIT_OR_DE_RISK':'REASSESS_STRATEGY',amountCent:0,reasonCodes:[achieved?'MAX_TERM_TARGET_REACHED':'MAX_TERM_REASSESS'],funding:fundingSourceSplit(0,cashPoolCent)};
     }
     const canUseXirr=calibrationStatus!=='STALE'&&calibrationStatus!=='MISSING'&&xirrRate!=null;
-    if(holdingYears>=3&&canUseXirr&&xirrRate>=0.10) return {action:'TAKE_PROFIT_TO_CASH_POOL',amountCent:0,reasonCodes:['XIRR_TAKE_PROFIT'],funding:fundingSourceSplit(0,cashPoolCent)};
+    if(holdingYears>=3&&canUseXirr&&xirrRate>=takeProfitMinXirr) return {action:'TAKE_PROFIT_TO_CASH_POOL',amountCent:0,reasonCodes:['XIRR_TAKE_PROFIT'],funding:fundingSourceSplit(0,cashPoolCent)};
     let candidate=strategy.baseRecurringAmountCent;
     const reasons=[];
     if(market&&market.available&&market.decisionReady!==false&&market.freshness!=='STALE'&&market.freshness!=='UNKNOWN'){
