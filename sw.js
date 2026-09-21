@@ -1,4 +1,4 @@
-const CACHE='csi1000-pwa-v1.0.9';
+const CACHE='csi1000-pwa-v1.0.10';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./strategy-core.js','./market-data-core.js','./market-provider.js','./calibration-core.js','./principal-revision-core.js','./fund-share-core.js','./trading-calendar-2026.json','./data/csi1000-history.json'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
