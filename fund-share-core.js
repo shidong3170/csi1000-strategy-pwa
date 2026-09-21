@@ -123,13 +123,13 @@
     return {...record,shareConfirmationStatus:record.shareConfirmationStatus||statusForExecution(status,false),fundProfileId:record.fundProfileId??null,fundCode:record.fundCode??null,navDate:record.navDate??(status==='EXECUTED'?recordDate(record):null),unitNavScaled:record.unitNavScaled??null,confirmedSharesMicro:record.confirmedSharesMicro??null,shareConfirmedAt:record.shareConfirmedAt??null,shareSource:record.shareSource??null};
   }
   function normalizeBackupStores(data,storeNames){
-    if(![1,2,3].includes(data?.schemaVersion)||!data.stores||typeof data.stores!=='object'||!Array.isArray(data.stores.record_revisions||[]))throw new Error('INCOMPATIBLE_BACKUP');
+    if(![1,2,3,4].includes(data?.schemaVersion)||!data.stores||typeof data.stores!=='object'||!Array.isArray(data.stores.record_revisions||[]))throw new Error('INCOMPATIBLE_BACKUP');
     const normalized={};
     for(const name of storeNames)normalized[name]=Array.isArray(data.stores[name])?data.stores[name].map(x=>({...x})):[];
     normalized.investment_cycles=(normalized.investment_cycles||[]).map(normalizeLegacyRecord);
     normalized.manual_trades=(normalized.manual_trades||[]).map(x=>x.type==='MANUAL_BUY'?normalizeLegacyRecord(x):x.type==='MANUAL_REDEEM'?{...x,shareConfirmationStatus:x.shareConfirmationStatus||SHARE_STATUS.NOT_APPLICABLE,redeemedSharesMicro:x.redeemedSharesMicro??null}:x);
     normalized.calibration_snapshots=(normalized.calibration_snapshots||[]).map(x=>{const isAnchor=x.isShareAnchor??['INITIALIZATION','MANUAL_CALIBRATION'].includes(x.source);return {...x,isShareAnchor:isAnchor,anchorSharesMicro:x.anchorSharesMicro??(isAnchor?x.totalSharesMicro:null),derivedSharesBeforeCalibrationMicro:x.derivedSharesBeforeCalibrationMicro??null,shareCorrectionMicro:x.shareCorrectionMicro??null,anchorEffectiveAt:x.anchorEffectiveAt||(isAnchor?(x.snapshotAt||x.createdAt||null):null)}});
-    normalized.app_meta=(normalized.app_meta||[]).map(x=>({...x,schemaVersion:4}));
+    normalized.app_meta=(normalized.app_meta||[]).map(x=>({...x,schemaVersion:5}));
     if(['fund_profiles','fund_nav_daily','investment_cycles','manual_trades','share_confirmation_events'].some(name=>(normalized[name]||[]).some(x=>x.fundCode==='000852')))throw new Error('INDEX_AS_FUND');
     return normalized;
   }

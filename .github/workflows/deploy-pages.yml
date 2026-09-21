@@ -36,6 +36,7 @@ jobs:
           node tests/calibration-core.test.js
           node tests/principal-revision-core.test.js
           node tests/fund-share-core.test.js
+          node tests/take-profit-core.test.js
           node tests/check-project.js
 
   deploy:
